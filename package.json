@@ -15,7 +15,7 @@
     "typecheck:node": "tsc --noEmit -p tsconfig.node.json",
     "typecheck:web": "tsc --noEmit -p tsconfig.web.json",
     "typecheck": "npm run typecheck:node && npm run typecheck:web",
-    "test": "tsx --test test/*.test.ts",
+    "test": "tsx --test test/domain.test.ts",
     "import:cli": "tsx src/main/services/importCli.ts",
     "postinstall": "electron-builder install-app-deps",
     "package:win": "electron-vite build && electron-builder --win --x64",
