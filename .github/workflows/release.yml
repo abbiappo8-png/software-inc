@@ -24,10 +24,13 @@ jobs:
           cache: npm
 
       - name: Instalar dependencias (recompila módulos nativos para Electron)
-        # npm install (no npm ci): el lockfile se generó en macOS y npm tiene un bug con
-        # las dependencias opcionales por plataforma (rollup/esbuild win32). npm install
-        # resuelve el binario correcto para Windows. Ref: npm/cli#4828
-        run: npm install --no-audit --no-fund
+        # Se elimina el lockfile antes de instalar: fue generado en macOS y npm tiene un
+        # bug con las dependencias opcionales por plataforma (rollup/esbuild win32); con el
+        # lock presente no instala el binario de Windows. Ref: npm/cli#4828
+        shell: bash
+        run: |
+          rm -f package-lock.json
+          npm install --no-audit --no-fund
 
       - name: Verificar (typecheck + tests)
         run: |

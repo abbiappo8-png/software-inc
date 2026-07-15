@@ -26,9 +26,11 @@ win:
   # Nombre FIJO (sin versión) => link de descarga permanente:
   #   https://github.com/<usuario>/<repo>/releases/latest/download/Software-Inc-Setup.exe
   artifactName: Software-Inc-Setup.${ext}
-# Publicación automática en GitHub Releases (owner/repo se detecta del remoto en CI)
+# Publicación automática en GitHub Releases
 publish:
   provider: github
+  owner: abbiappo8-png
+  repo: software-inc
   releaseType: release
 nsis:
   oneClick: false

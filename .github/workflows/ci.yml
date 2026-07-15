@@ -16,7 +16,8 @@ jobs:
         with:
           node-version: 20
           cache: npm
-      # npm install (no npm ci) por el bug de deps opcionales por plataforma (npm/cli#4828)
-      - run: npm install --no-audit --no-fund
+      # Se elimina el lockfile antes de instalar por el bug de deps opcionales por
+      # plataforma (rollup/esbuild); ver npm/cli#4828.
+      - run: rm -f package-lock.json && npm install --no-audit --no-fund
       - run: npm run typecheck
       - run: npm test
