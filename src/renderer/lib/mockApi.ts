@@ -599,7 +599,11 @@ function buildBill(clientId: number, opts: any) {
   const txs = transactions.filter((t) => t.clientId === clientId && t.endMin != null)
   const sales = barSales.filter((s) => s.clientId === clientId)
   const items = [
-    ...txs.map((t) => ({ kind: 'service' as const, transactionId: t.id, description: `${t.serviceRaw ?? 'Servicio'} (${t.txDate})`, qty: 1, unitPrice: t.priceEffective ?? 0, lineTotal: t.priceEffective ?? 0 })),
+    ...txs.map((t) => {
+      const hhmm = (m: number) => `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`
+      const horario = t.startMin != null && t.endMin != null ? `, ${hhmm(t.startMin)}–${hhmm(t.endMin)}` : ''
+      return { kind: 'service' as const, transactionId: t.id, description: `${t.serviceRaw ?? 'Servicio'} (${t.txDate}${horario})`, qty: 1, unitPrice: t.priceEffective ?? 0, lineTotal: t.priceEffective ?? 0 }
+    }),
     ...sales.map((s) => ({ kind: 'bar' as const, barSaleId: s.id, description: `Bar: ${s.productRaw} x${s.qty} (${s.saleDate})`, qty: s.qty, unitPrice: s.qty ? Math.round(s.total / s.qty) : s.total, lineTotal: s.total }))
   ]
   const sumServices = txs.reduce((a, b) => a + (b.priceEffective ?? 0), 0)

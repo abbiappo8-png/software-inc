@@ -37,6 +37,7 @@ import { autoPrice, professorSalary as calcProfessorSalary } from '@shared/servi
 import { detectCourseForClient, type CourseLevel } from '@shared/services/courses'
 import { unitCost, saleTotal, canSell } from '@shared/services/bar'
 import { computeClientBill, lodgingDaysFromStay } from '@shared/services/billing'
+import { minutesToHHMM } from '@shared/services/dates'
 import { computeProfessorPayroll } from '@shared/services/payroll'
 import { computeRunningBalance, totals as balanceTotals, type DayAggregate } from '@shared/services/balance'
 import { ageAt, ageHistogram } from '@shared/services/statistics'
@@ -579,7 +580,7 @@ async function previewClientBill(clientId: number, opts: BillOptions = {}) {
   // Se excluyen las sesiones ABIERTAS (end_min NULL): se facturan tras el check-out.
   const [txs, sales, svcNames, products] = await Promise.all([
     sb.selectAll<any>('transactions', {
-      select: 'id,tx_date,price_effective,resolved_service_id,service_id',
+      select: 'id,tx_date,start_min,end_min,price_effective,resolved_service_id,service_id',
       filters: [sb.eq('client_id', clientId), sb.notNull('end_min')],
       order: 'tx_date.asc,id.asc'
     }),
@@ -596,10 +597,12 @@ async function previewClientBill(clientId: number, opts: BillOptions = {}) {
   const items: ClientBillItem[] = []
   for (const t of txs) {
     const service = svcNames.get(t.resolved_service_id ?? t.service_id) ?? null
+    // Horario de la sesión en el recibo: "(fecha, 09:30–11:00)"
+    const horario = t.start_min != null ? `, ${minutesToHHMM(t.start_min)}–${minutesToHHMM(t.end_min)}` : ''
     items.push({
       kind: 'service',
       transactionId: t.id,
-      description: `${service ?? 'Servicio'} (${t.tx_date})`,
+      description: `${service ?? 'Servicio'} (${t.tx_date}${horario})`,
       qty: 1,
       unitPrice: t.price_effective ?? 0,
       lineTotal: t.price_effective ?? 0

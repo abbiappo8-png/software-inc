@@ -2,6 +2,7 @@
 import { getDb } from '../db/connection'
 import type { ClientBill, ClientBillItem } from '@shared/types/domain'
 import { computeClientBill, lodgingDaysFromStay } from '@shared/services/billing'
+import { minutesToHHMM } from '@shared/services/dates'
 import { getCompanyConfig } from './settingsRepo'
 
 export interface BillOptions {
@@ -31,7 +32,7 @@ export function previewClientBill(clientId: number, opts: BillOptions = {}): Bil
     .prepare(
       // Se excluyen las sesiones ABIERTAS (end_min NULL): aún no tienen precio y no
       // deben entrar en la factura como líneas de $0. Se facturan tras el check-out.
-      `SELECT t.id, t.tx_date, t.price_effective, s.name AS service
+      `SELECT t.id, t.tx_date, t.start_min, t.end_min, t.price_effective, s.name AS service
        FROM transactions t LEFT JOIN service_catalog s ON s.id=COALESCE(t.resolved_service_id, t.service_id)
        WHERE t.client_id=? AND t.end_min IS NOT NULL ORDER BY t.tx_date`
     )
@@ -47,10 +48,12 @@ export function previewClientBill(clientId: number, opts: BillOptions = {}): Bil
 
   const items: ClientBillItem[] = []
   for (const t of txs) {
+    // Horario de la sesión en el recibo: "(fecha, 09:30–11:00)"
+    const horario = t.start_min != null ? `, ${minutesToHHMM(t.start_min)}–${minutesToHHMM(t.end_min)}` : ''
     items.push({
       kind: 'service',
       transactionId: t.id,
-      description: `${t.service ?? 'Servicio'} (${t.tx_date})`,
+      description: `${t.service ?? 'Servicio'} (${t.tx_date}${horario})`,
       qty: 1,
       unitPrice: t.price_effective ?? 0,
       lineTotal: t.price_effective ?? 0
