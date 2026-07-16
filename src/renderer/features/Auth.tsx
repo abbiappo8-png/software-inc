@@ -1,6 +1,7 @@
 import React, { useState } from 'react'
 import { api } from '../lib/api'
 import { Spinner } from '../components/ui'
+import { Logo } from '../components/Logo'
 
 export function SetPinScreen({ onDone }: { onDone: () => void }) {
   const [pin, setPin] = useState('')
@@ -27,6 +28,7 @@ export function SetPinScreen({ onDone }: { onDone: () => void }) {
   return (
     <div className="auth-wrap">
       <form className="auth-card" onSubmit={submit}>
+        <div className="logo-wrap"><Logo height={48} /></div>
         <h2>Crear PIN de acceso</h2>
         <p className="sub">Protege la información de tus clientes. Podrás cambiarlo luego en Ajustes.</p>
         <div className="field">
@@ -71,7 +73,7 @@ export function PinGate({ onUnlock }: { onUnlock: () => void }) {
   return (
     <div className="auth-wrap">
       <form className="auth-card" onSubmit={submit}>
-        <h2>Software Inc</h2>
+        <div className="logo-wrap"><Logo height={48} /></div>
         <p className="sub">Ingresa tu PIN para continuar.</p>
         <div className="field">
           <input className="pin-input" type="password" inputMode="numeric" value={pin} onChange={(e) => setPin(e.target.value)} autoFocus />

@@ -32,8 +32,89 @@ export function listProducts(): BarProduct[] {
 }
 
 export function getProduct(id: number): BarProduct | null {
-  const r = getDb().prepare('SELECT * FROM bar_products WHERE id=?').get(id)
+  const r = getDb()
+    .prepare(
+      `SELECT p.*,
+         (SELECT IFNULL(SUM(e.count),0) FROM expenses e WHERE e.supply_name=p.name)
+         - (SELECT IFNULL(SUM(s.qty),0) FROM bar_sales s WHERE s.product_id=p.id) AS stock
+       FROM bar_products p WHERE p.id=?`
+    )
+    .get(id)
   return r ? mapProduct(r) : null
+}
+
+export interface BarProductInput {
+  name: string
+  boxPrice: number | null
+  unitsPerBox: number | null
+  sellPrice: number | null
+  active?: boolean
+}
+
+export function createProduct(input: BarProductInput): BarProduct {
+  const id = getDb()
+    .prepare(
+      `INSERT INTO bar_products(name,name_normalized,box_price,units_per_box,sell_price,active)
+       VALUES(@name,@norm,@box,@units,@sell,@active)`
+    )
+    .run({
+      name: input.name, norm: normalize(input.name), box: input.boxPrice ?? null,
+      units: input.unitsPerBox ?? null, sell: input.sellPrice ?? null,
+      active: input.active === false ? 0 : 1
+    }).lastInsertRowid as number
+  return getProduct(id)!
+}
+
+export function updateProduct(id: number, input: BarProductInput): BarProduct {
+  const before = getProduct(id)
+  getDb()
+    .prepare(
+      `UPDATE bar_products SET name=@name, name_normalized=@norm, box_price=@box,
+        units_per_box=@units, sell_price=@sell, active=@active WHERE id=@id`
+    )
+    .run({
+      id, name: input.name, norm: normalize(input.name), box: input.boxPrice ?? null,
+      units: input.unitsPerBox ?? null, sell: input.sellPrice ?? null,
+      active: input.active === false ? 0 : 1
+    })
+  // El stock se deriva de expenses.supply_name = nombre del producto. Si el nombre
+  // cambió, migramos el historial de compras para no huérfanar el stock.
+  if (before && before.name !== input.name) {
+    getDb()
+      .prepare('UPDATE expenses SET supply_name=@new WHERE supply_name=@old')
+      .run({ new: input.name, old: before.name })
+  }
+  return getProduct(id)!
+}
+
+export interface RestockInput {
+  productId: number
+  date: string
+  units: number
+  amount: number // costo total de la compra (COP)
+  comment?: string | null
+}
+
+/**
+ * Registra una entrada de stock como una compra (gasto). El stock se deriva de
+ * Σ compras (expenses.count por nombre de producto) − Σ ventas, así que ingresar
+ * inventario = registrar la compra con supply_name = nombre del producto.
+ */
+export function restock(input: RestockInput): BarProduct {
+  const product = getProduct(input.productId)
+  if (!product) throw new Error('Producto no encontrado')
+  if (!(input.units > 0)) throw new Error('Las unidades deben ser mayores que cero')
+  getDb()
+    .prepare(
+      `INSERT INTO expenses(expense_date,supply_name,count,amount_out,comment)
+       VALUES(@date,@name,@units,@amount,@comment)`
+    )
+    .run({
+      date: input.date, name: product.name, units: input.units,
+      amount: Math.round(input.amount || 0),
+      comment: input.comment ?? `Compra de inventario: ${product.name}`
+    })
+  return getProduct(input.productId)!
 }
 
 function stockOf(productId: number): number {

@@ -26,6 +26,7 @@ import { renderHtmlToPdf } from '../services/pdf'
 import { clientBillHtml, settlementHtml } from '../templates/documents'
 import { sendInvoiceEmail, verifySmtp } from '../services/email'
 import { encryptSecret } from '../services/crypto'
+import * as forms from '../services/formsSync'
 
 const personInput = z.object({
   fullName: z.string().min(1),
@@ -54,11 +55,36 @@ const txInput = z.object({
   endMin: z.number().nullable(),
   serviceId: z.number().nullable(),
   isClass: z.boolean(),
+  txType: z.enum(['class', 'loan', 'service', 'other']).optional(),
   clientId: z.number().nullable(),
   professorId: z.number().nullable(),
   kiteId: z.number().nullable(),
   boardId: z.number().nullable(),
   priceOverride: z.number().nullable(),
+  comment: z.string().nullable().optional()
+})
+
+const equipmentInput = z.object({
+  name: z.string().min(1),
+  category: z.enum(['kite', 'board', 'efoil', 'sup', 'wing', 'wake', 'other']),
+  count: z.number().int().min(0).optional(),
+  price: z.number().nullable().optional(),
+  active: z.boolean().optional()
+})
+
+const barProductInput = z.object({
+  name: z.string().min(1),
+  boxPrice: z.number().nullable().optional(),
+  unitsPerBox: z.number().nullable().optional(),
+  sellPrice: z.number().nullable().optional(),
+  active: z.boolean().optional()
+})
+
+const restockInput = z.object({
+  productId: z.number(),
+  date: z.string().min(1),
+  units: z.number().positive(),
+  amount: z.number().min(0),
   comment: z.string().nullable().optional()
 })
 
@@ -117,25 +143,37 @@ export function registerHandlers(getMainWindow: () => BrowserWindow | null): voi
   ipcMain.handle('catalog:createService', (_e, s) => catalog.createService(s))
   ipcMain.handle('catalog:updateService', (_e, id: number, s) => catalog.updateService(Number(id), s))
   ipcMain.handle('catalog:listEquipment', (_e, onlyActive?: boolean) => catalog.listEquipment(!!onlyActive))
+  ipcMain.handle('catalog:createEquipment', (_e, input) => catalog.createEquipment(equipmentInput.parse(input) as any))
+  ipcMain.handle('catalog:updateEquipment', (_e, id: number, input) => catalog.updateEquipment(Number(id), equipmentInput.parse(input) as any))
 
   // ---- transactions ----
   ipcMain.handle('tx:list', (_e, filter) => txRepo.list(filter ?? {}))
+  ipcMain.handle('tx:preview', (_e, input) => txRepo.preview(txInput.parse(input)))
   ipcMain.handle('tx:create', (_e, input) => txRepo.create(txInput.parse(input)))
+  ipcMain.handle('tx:update', (_e, id: number, input) => txRepo.update(Number(id), txInput.parse(input)))
+  ipcMain.handle('tx:checkout', (_e, id: number, endMin?: number | null) =>
+    txRepo.checkout(Number(id), endMin == null ? null : Number(endMin))
+  )
   ipcMain.handle('tx:remove', (_e, id: number) => txRepo.remove(Number(id)))
 
   // ---- bar ----
   ipcMain.handle('bar:listProducts', () => bar.listProducts())
+  ipcMain.handle('bar:createProduct', (_e, input) => bar.createProduct(barProductInput.parse(input) as any))
+  ipcMain.handle('bar:updateProduct', (_e, id: number, input) => bar.updateProduct(Number(id), barProductInput.parse(input) as any))
+  ipcMain.handle('bar:restock', (_e, input) => bar.restock(restockInput.parse(input)))
   ipcMain.handle('bar:createSale', (_e, input) => bar.createSale(input))
   ipcMain.handle('bar:listSales', (_e, from?: string, to?: string) => bar.listSales(from, to))
 
   // ---- expenses ----
   ipcMain.handle('expenses:list', (_e, from?: string, to?: string) => expenses.list(from, to))
   ipcMain.handle('expenses:create', (_e, input) => expenses.create(input))
+  ipcMain.handle('expenses:update', (_e, id: number, input) => expenses.update(Number(id), input))
   ipcMain.handle('expenses:remove', (_e, id: number) => expenses.remove(Number(id)))
 
   // ---- bills ----
   ipcMain.handle('bills:preview', (_e, clientId: number, opts) => bills.previewClientBill(Number(clientId), opts ?? {}))
   ipcMain.handle('bills:save', (_e, clientId: number, opts) => bills.saveBill(Number(clientId), opts ?? {}))
+  ipcMain.handle('bills:markPaid', (_e, billId: number) => bills.markPaid(Number(billId)))
   ipcMain.handle('bills:pdf', async (_e, billId: number) => {
     const bill = bills.get(Number(billId))
     if (!bill) throw new Error('Factura no encontrada')
@@ -172,6 +210,9 @@ export function registerHandlers(getMainWindow: () => BrowserWindow | null): voi
   )
   ipcMain.handle('settlements:save', (_e, professorId: number, year: number, month: number) =>
     settlements.saveSettlement(Number(professorId), Number(year), Number(month))
+  )
+  ipcMain.handle('settlements:markPaid', (_e, professorId: number, year: number, month: number) =>
+    settlements.markPaid(Number(professorId), Number(year), Number(month))
   )
   ipcMain.handle('settlements:pdf', async (_e, professorId: number, year: number, month: number) => {
     const preview = settlements.previewSettlement(Number(professorId), Number(year), Number(month))
@@ -220,6 +261,44 @@ export function registerHandlers(getMainWindow: () => BrowserWindow | null): voi
   ipcMain.handle('settings:testSmtp', () => verifySmtp())
   ipcMain.handle('settings:setBarDiscount', (_e, pct: number) => settings.set('bar_discount_pct', String(pct)))
   ipcMain.handle('settings:getBarDiscount', () => parseFloat(settings.get('bar_discount_pct') ?? '0'))
+
+  // ---- Google Forms (Reservas Web) ----
+  const formConfig = z.array(
+    z.object({
+      key: z.string(),
+      name: z.string(),
+      csvUrl: z.string(),
+      formUrl: z.string()
+    })
+  )
+  const formGuessEdit = z
+    .object({
+      fullName: z.string().nullable().optional(),
+      email: z.string().nullable().optional(),
+      passport: z.string().nullable().optional(),
+      country: z.string().nullable().optional(),
+      birthDate: z.string().nullable().optional(),
+      date: z.string().nullable().optional(),
+      startMin: z.number().nullable().optional(),
+      service: z.string().nullable().optional(),
+      comment: z.string().nullable().optional()
+    })
+    .optional()
+  ipcMain.handle('forms:list', () => forms.listForms())
+  ipcMain.handle('forms:saveConfig', (_e, cfg) => forms.saveForms(formConfig.parse(cfg)))
+  ipcMain.handle('forms:sync', (_e, formKey: string) => forms.sync(String(formKey)))
+  ipcMain.handle('forms:responses', (_e, formKey: string, status?: string) =>
+    forms.listResponses(String(formKey), status)
+  )
+  ipcMain.handle('forms:convert', (_e, responseId: number, kind: string, edited) =>
+    forms.convert(
+      Number(responseId),
+      kind === 'reservation' ? 'reservation' : 'client',
+      formGuessEdit.parse(edited),
+      { createTransaction: (input) => txRepo.create(input) }
+    )
+  )
+  ipcMain.handle('forms:ignore', (_e, responseId: number) => forms.ignore(Number(responseId)))
 
   // ---- backup ----
   ipcMain.handle('backup:create', () => backup.createBackup())

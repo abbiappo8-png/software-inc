@@ -3,7 +3,7 @@
  * Bootstrap: rutas -> BD -> migraciones -> backup automático -> handlers IPC -> ventana.
  * Seguridad: contextIsolation, sin nodeIntegration, navegación externa bloqueada.
  */
-import { app, BrowserWindow, shell } from 'electron'
+import { app, BrowserWindow, shell, session } from 'electron'
 import { join } from 'node:path'
 import { getPaths } from './paths'
 import { initDatabase, getDb, closeDatabase } from './db/connection'
@@ -55,6 +55,11 @@ app.whenReady().then(async () => {
 
   // Backup automático si el último tiene > 24h
   await backupIfStale(getSetting('last_backup_at'), 24).catch((e) => console.warn('[backup] ', e?.message))
+
+  // Permitir SOLO la cámara (foto de perfil con la cámara del equipo); lo demás, denegado.
+  session.defaultSession.setPermissionRequestHandler((_wc, permission, callback) => {
+    callback(permission === 'media')
+  })
 
   registerHandlers(() => mainWindow)
   createWindow()

@@ -1,180 +1,205 @@
 import React, { useState } from 'react'
-import { api, useAsync, formatCOP, minutesToHHMM, hhmmToMinutes, todayISO } from '../lib/api'
-import { Modal, Field, Spinner, Empty } from '../components/ui'
+import { api, useAsync, formatCOP, minutesToHHMM, todayISO } from '../lib/api'
+import { Spinner, Empty, Avatar } from '../components/ui'
+import { PersonAvatar } from '../components/PersonAvatar'
+import { EditableTable, GridColumn } from '../components/EditableTable'
+import type { Transaction } from '@shared/types/domain'
+
+const CLASS = '__class__'
+const TYPE_OPTS = [
+  { value: 'class', label: 'Clase' },
+  { value: 'loan', label: 'Préstamo' },
+  { value: 'service', label: 'Servicio' },
+  { value: 'other', label: 'Otro' }
+]
+
+function nowMin(): number {
+  const d = new Date()
+  return d.getHours() * 60 + d.getMinutes()
+}
+const numOrNull = (v: any) => (v === '' || v == null ? null : Number(v))
 
 export function Transacciones() {
-  const [creating, setCreating] = useState(false)
-  const { data, loading, reload } = useAsync(() => api.transactions.list({ limit: 300 }), [])
+  const { data, loading, reload } = useAsync(() => api.transactions.list({ limit: 500 }), [])
   const persons = useAsync(() => api.persons.list({ limit: 2000 }), [])
   const services = useAsync(() => api.catalog.listServices(true), [])
   const equipment = useAsync(() => api.catalog.listEquipment(true), [])
+  const [grouped, setGrouped] = useState(false)
+
+  const clients = (persons.data ?? []).filter((p) => p.isClient)
+  const professors = (persons.data ?? []).filter((p) => p.isProfessor)
+  const hasCourses = (services.data ?? []).some((s) => s.isClass)
+
+  const opt = (arr: { id: number; label: string }[]) => [
+    { value: '', label: '—' },
+    ...arr.map((x) => ({ value: String(x.id), label: x.label }))
+  ]
+  const clientOpts = opt(clients.map((c) => ({ id: c.id, label: c.fullName })))
+  const profOpts = opt(professors.map((p) => ({ id: p.id, label: p.nickname || p.fullName })))
+  const equipOpts = opt((equipment.data ?? []).map((e) => ({ id: e.id, label: e.name })))
+  const serviceOpts = [
+    { value: '', label: '—' },
+    ...(hasCourses ? [{ value: CLASS, label: '★ Clase de curso (nivel auto)' }] : []),
+    ...(services.data ?? []).map((s) => ({ value: String(s.id), label: `${s.name} · ${formatCOP(s.price)}` }))
+  ]
+
+  /** Construye el input completo para create/update a partir de una fila (con parche aplicado). */
+  function toInput(r: any) {
+    // serviceSel es la única fuente: '' / null = sin servicio (limpiar la celda LIMPIA el servicio).
+    const isClass = r.serviceSel === CLASS
+    const serviceId = isClass ? null : numOrNull(r.serviceSel)
+    // Invariante: clase de curso => tipo 'class'; si deja de ser clase, 'class' vuelve a 'service'.
+    const txType = isClass ? 'class' : r.txType && r.txType !== 'class' ? r.txType : 'service'
+    return {
+      txDate: r.txDate,
+      startMin: r.startMin ?? null,
+      endMin: r.endMin ?? null,
+      serviceId,
+      isClass,
+      txType: txType as any,
+      clientId: numOrNull(r.clientId),
+      professorId: numOrNull(r.professorId),
+      kiteId: numOrNull(r.kiteId),
+      boardId: numOrNull(r.boardId),
+      priceOverride: r.priceOverride ?? null,
+      comment: r.comment ?? null
+    }
+  }
+
+  async function onCreate(draft: any) {
+    await api.transactions.create(toInput(draft))
+    reload()
+  }
+  async function onUpdate(id: number, patch: any) {
+    const row = data?.find((t) => t.id === id)
+    if (!row) return
+    // Fila base con serviceSel derivado, luego aplica el parche de la celda.
+    const base: any = { ...row, serviceSel: row.isClass ? CLASS : row.serviceId == null ? '' : String(row.serviceId) }
+    await api.transactions.update(id, toInput({ ...base, ...patch }))
+    reload()
+  }
+  async function onDelete(id: number) {
+    if (!confirm('¿Eliminar esta transacción? Se quitará de la cuenta del cliente.')) return
+    await api.transactions.remove(id)
+    reload()
+  }
+  async function salida(id: number) {
+    await api.transactions.checkout(id)
+    reload()
+  }
 
   const nameOf = (id: number | null) => persons.data?.find((p) => p.id === id)?.fullName ?? '—'
-  const svcOf = (id: number | null) => services.data?.find((s) => s.id === id)?.name ?? null
+
+  const columns: GridColumn[] = [
+    { key: 'txDate', label: 'Fecha', type: 'date', width: 140 },
+    { key: 'clientId', label: 'Cliente', type: 'select', options: clientOpts, width: 160, get: (r) => (r.clientId == null ? '' : String(r.clientId)) },
+    { key: 'serviceSel', label: 'Servicio / Clase', type: 'select', options: serviceOpts, width: 210, get: (r) => (r.isClass ? CLASS : r.serviceId == null ? '' : String(r.serviceId)) },
+    { key: 'txType', label: 'Tipo', type: 'select', options: TYPE_OPTS, width: 110, get: (r) => r.txType ?? 'service' },
+    { key: 'professorId', label: 'Profesor', type: 'select', options: profOpts, width: 130, get: (r) => (r.professorId == null ? '' : String(r.professorId)) },
+    { key: 'startMin', label: 'Entrada', type: 'time', width: 92 },
+    { key: 'endMin', label: 'Salida', type: 'time', width: 92 },
+    { key: 'kiteId', label: 'Kite', type: 'select', options: equipOpts, width: 120, get: (r) => (r.kiteId == null ? '' : String(r.kiteId)) },
+    { key: 'boardId', label: 'Tabla', type: 'select', options: equipOpts, width: 120, get: (r) => (r.boardId == null ? '' : String(r.boardId)) },
+    {
+      key: 'priceEffective', label: 'Precio', type: 'computed', align: 'right', width: 120,
+      render: (r) => (r.isOpen ? <span className="badge open">Abierta</span> : <strong>{formatCOP(r.priceEffective)}</strong>)
+    },
+    { key: 'professorSalary', label: 'Salario prof.', type: 'computed', align: 'right', width: 110, render: (r) => formatCOP(r.professorSalary) }
+  ]
+
+  const busy = loading || persons.loading || services.loading
 
   return (
     <div>
       <div className="header">
-        <h1>Transacciones / Reservas</h1>
-        <button className="btn primary" onClick={() => setCreating(true)}>+ Nueva reserva</button>
+        <h1>Club</h1>
+        <div className="toolbar" style={{ margin: 0 }}>
+          <button className={`btn ${grouped ? '' : 'primary'} sm`} onClick={() => setGrouped(false)}>Cuadrícula</button>
+          <button className={`btn ${grouped ? 'primary' : ''} sm`} onClick={() => setGrouped(true)}>Agrupar por cliente</button>
+        </div>
       </div>
-      <div className="panel">
-        {loading ? (
-          <div style={{ padding: 24 }}><Spinner /></div>
-        ) : !data?.length ? (
-          <Empty>Sin transacciones.</Empty>
-        ) : (
-          <table className="data">
-            <thead>
-              <tr>
-                <th>Fecha</th>
-                <th>Horario</th>
-                <th>Servicio</th>
-                <th>Cliente</th>
-                <th>Profesor</th>
-                <th className="num">Precio</th>
-                <th className="num">Salario prof.</th>
-              </tr>
-            </thead>
-            <tbody>
-              {data.map((t) => (
-                <tr key={t.id}>
-                  <td>{t.txDate}</td>
-                  <td>{t.startMin != null ? `${minutesToHHMM(t.startMin)}–${minutesToHHMM(t.endMin)}` : '—'}</td>
-                  <td>{t.isClass ? <span className="badge role">Clase</span> : ''} {svcOf(t.resolvedServiceId ?? t.serviceId) ?? t.serviceRaw ?? '—'}</td>
-                  <td>{nameOf(t.clientId)}</td>
-                  <td>{nameOf(t.professorId)}</td>
-                  <td className="num">{formatCOP(t.priceEffective)}</td>
-                  <td className="num">{formatCOP(t.professorSalary)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
-      </div>
+      <p className="muted" style={{ margin: '-6px 0 14px' }}>
+        Escribe la fila como en Excel. <strong>Entrada</strong> = hora de inicio (queda abierta, sin precio).
+        <strong> Salida</strong> = escribe la hora de fin o pulsa “Salida ahora”: el precio se calcula por los
+        minutos y se carga a la cuenta del cliente.
+      </p>
 
-      {creating && persons.data && services.data && (
-        <TxForm
-          persons={persons.data}
-          services={services.data}
-          equipment={equipment.data ?? []}
-          onClose={() => setCreating(false)}
-          onSaved={() => {
-            setCreating(false)
-            reload()
-          }}
+      {busy ? (
+        <div className="panel"><div style={{ padding: 24 }}><Spinner /></div></div>
+      ) : grouped ? (
+        <GroupedView data={data ?? []} persons={persons.data ?? []} services={services.data ?? []} onSalida={salida} />
+      ) : (
+        <EditableTable
+          columns={columns}
+          rows={data ?? []}
+          onCreate={onCreate}
+          onUpdate={onUpdate}
+          onDelete={onDelete}
+          canCreate={(d) => !!(d.txDate && d.clientId && d.serviceSel)}
+          newRowDefaults={{ txDate: todayISO(), txType: 'service', startMin: nowMin() }}
+          rowClassName={(r) => (r.isOpen ? 'row-open' : undefined)}
+          addLabel="Registrar"
+          rowActions={(r) =>
+            r.isOpen ? (
+              <button className="btn primary sm" onClick={() => salida(r.id)} title="Registrar salida (hora actual)">Salida ahora</button>
+            ) : null
+          }
         />
       )}
     </div>
   )
 }
 
-function TxForm({ persons, services, equipment, onClose, onSaved }: any) {
-  const clients = persons.filter((p: any) => p.isClient)
-  const professors = persons.filter((p: any) => p.isProfessor)
-  const [form, setForm] = useState({
-    txDate: todayISO(),
-    start: '08:00',
-    end: '09:00',
-    serviceId: '' as string,
-    isClass: false,
-    clientId: '' as string,
-    professorId: '' as string,
-    kiteId: '' as string,
-    boardId: '' as string,
-    priceOverride: '' as string
-  })
-  const [busy, setBusy] = useState(false)
-  const [err, setErr] = useState<string | null>(null)
-  const set = (p: any) => setForm((f) => ({ ...f, ...p }))
-
-  async function save() {
-    setErr(null)
-    const startMin = hhmmToMinutes(form.start)
-    const endMin = hhmmToMinutes(form.end)
-    if (startMin != null && endMin != null && endMin <= startMin) return setErr('La hora de fin debe ser mayor que la de inicio.')
-    setBusy(true)
-    try {
-      await api.transactions.create({
-        txDate: form.txDate,
-        startMin,
-        endMin,
-        serviceId: form.isClass ? null : form.serviceId ? Number(form.serviceId) : null,
-        isClass: form.isClass,
-        clientId: form.clientId ? Number(form.clientId) : null,
-        professorId: form.professorId ? Number(form.professorId) : null,
-        kiteId: form.kiteId ? Number(form.kiteId) : null,
-        boardId: form.boardId ? Number(form.boardId) : null,
-        priceOverride: form.priceOverride ? Number(form.priceOverride) : null
-      })
-      onSaved()
-    } catch (e: any) {
-      setErr(e?.message ?? 'Error')
-    } finally {
-      setBusy(false)
-    }
+function GroupedView({ data, persons, services, onSalida }: { data: Transaction[]; persons: any[]; services: any[]; onSalida: (id: number) => void }) {
+  const [open, setOpen] = useState<Set<number>>(new Set())
+  const svcOf = (id: number | null) => services.find((s) => s.id === id)?.name ?? null
+  const groups = new Map<number, Transaction[]>()
+  for (const t of data) {
+    const k = t.clientId ?? -1
+    if (!groups.has(k)) groups.set(k, [])
+    groups.get(k)!.push(t)
   }
+  const toggle = (id: number) => setOpen((s) => { const n = new Set(s); n.has(id) ? n.delete(id) : n.add(id); return n })
+  if (!groups.size) return <Empty>Sin transacciones.</Empty>
 
   return (
-    <Modal
-      title="Nueva reserva"
-      onClose={onClose}
-      footer={
-        <>
-          <button className="btn" onClick={onClose}>Cancelar</button>
-          <button className="btn primary" onClick={save} disabled={busy}>{busy ? <Spinner /> : 'Guardar'}</button>
-        </>
-      }
-    >
-      <div className="row3">
-        <Field label="Fecha"><input type="date" value={form.txDate} onChange={(e) => set({ txDate: e.target.value })} /></Field>
-        <Field label="Hora inicio"><input type="time" value={form.start} onChange={(e) => set({ start: e.target.value })} /></Field>
-        <Field label="Hora fin"><input type="time" value={form.end} onChange={(e) => set({ end: e.target.value })} /></Field>
-      </div>
-      <div className="row2">
-        <Field label="Cliente">
-          <select value={form.clientId} onChange={(e) => set({ clientId: e.target.value })}>
-            <option value="">—</option>
-            {clients.map((c: any) => <option key={c.id} value={c.id}>{c.fullName}</option>)}
-          </select>
-        </Field>
-        <Field label="Profesor">
-          <select value={form.professorId} onChange={(e) => set({ professorId: e.target.value })}>
-            <option value="">—</option>
-            {professors.map((p: any) => <option key={p.id} value={p.id}>{p.nickname || p.fullName}</option>)}
-          </select>
-        </Field>
-      </div>
-      <div style={{ marginBottom: 10 }}>
-        <label><input type="checkbox" style={{ width: 'auto' }} checked={form.isClass} onChange={(e) => set({ isClass: e.target.checked })} /> Es una clase (el curso se detecta según las horas acumuladas del cliente)</label>
-      </div>
-      {!form.isClass && (
-        <Field label="Servicio">
-          <select value={form.serviceId} onChange={(e) => set({ serviceId: e.target.value })}>
-            <option value="">—</option>
-            {services.map((s: any) => <option key={s.id} value={s.id}>{s.name} · {formatCOP(s.price)}</option>)}
-          </select>
-        </Field>
-      )}
-      <div className="row3">
-        <Field label="Kite">
-          <select value={form.kiteId} onChange={(e) => set({ kiteId: e.target.value })}>
-            <option value="">—</option>
-            {equipment.map((eq: any) => <option key={eq.id} value={eq.id}>{eq.name}</option>)}
-          </select>
-        </Field>
-        <Field label="Tabla">
-          <select value={form.boardId} onChange={(e) => set({ boardId: e.target.value })}>
-            <option value="">—</option>
-            {equipment.map((eq: any) => <option key={eq.id} value={eq.id}>{eq.name}</option>)}
-          </select>
-        </Field>
-        <Field label="Precio manual (opcional)">
-          <input type="number" value={form.priceOverride} onChange={(e) => set({ priceOverride: e.target.value })} placeholder="Auto" />
-        </Field>
-      </div>
-      {err && <div className="err">{err}</div>}
-      <p className="muted">El precio y el salario del profesor se calculan automáticamente con el catálogo y el descuento del cliente.</p>
-    </Modal>
+    <div className="grid" style={{ gap: 10 }}>
+      {[...groups.entries()].map(([clientId, txs]) => {
+        const client = persons.find((p) => p.id === clientId)
+        // El total solo cuenta sesiones CERRADAS (las abiertas aún no tienen precio real).
+        const total = txs.filter((t) => !t.isOpen).reduce((a, t) => a + (t.priceEffective ?? 0), 0)
+        const openCount = txs.filter((t) => t.isOpen).length
+        const isOpen = open.has(clientId)
+        return (
+          <div className="panel" key={clientId}>
+            <div className="panel-p clickable" style={{ display: 'flex', alignItems: 'center', gap: 12 }} onClick={() => toggle(clientId)}>
+              {client ? <PersonAvatar person={client} /> : <Avatar name="Sin cliente" />}
+              <div style={{ flex: 1 }}>
+                <strong>{client?.fullName ?? 'Sin cliente'}</strong>{' '}
+                {openCount > 0 && <span className="badge open">{openCount} abierta{openCount > 1 ? 's' : ''}</span>}
+                <div className="muted" style={{ fontSize: 12 }}>{txs.length} registro{txs.length > 1 ? 's' : ''} · total {formatCOP(total)}</div>
+              </div>
+              <span className="muted">{isOpen ? '▾' : '▸'}</span>
+            </div>
+            {isOpen && (
+              <table className="data">
+                <thead><tr><th>Fecha</th><th>Servicio</th><th>Horario</th><th className="num">Precio</th><th /></tr></thead>
+                <tbody>
+                  {txs.map((t) => (
+                    <tr key={t.id} className={t.isOpen ? 'row-open' : undefined}>
+                      <td>{t.txDate}</td>
+                      <td>{t.txType === 'loan' ? <span className="badge loan">Préstamo</span> : t.isClass ? <span className="badge class">Clase</span> : ''} {svcOf(t.resolvedServiceId ?? t.serviceId) ?? t.serviceRaw ?? '—'}</td>
+                      <td>{t.startMin != null ? minutesToHHMM(t.startMin) : '—'}{t.endMin != null ? `–${minutesToHHMM(t.endMin)}` : ''}</td>
+                      <td className="num">{t.isOpen ? <span className="badge open">Abierta</span> : formatCOP(t.priceEffective)}</td>
+                      <td>{t.isOpen && <button className="btn primary sm" onClick={() => onSalida(t.id)}>Salida ahora</button>}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </div>
+        )
+      })}
+    </div>
   )
 }

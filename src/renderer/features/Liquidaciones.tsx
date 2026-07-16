@@ -26,7 +26,21 @@ export function Liquidaciones() {
   async function save() {
     if (!professorId) return
     await api.settlements.save(professorId, year, month)
+    setPreview(await api.settlements.preview(professorId, year, month))
     setMsg('Liquidación guardada.')
+  }
+  async function marcarPagado() {
+    if (!professorId) return
+    setBusy(true)
+    try {
+      await api.settlements.markPaid(professorId, year, month)
+      setPreview(await api.settlements.preview(professorId, year, month)) // refresca el badge
+      setMsg('✔ Liquidación marcada como PAGADA.')
+    } catch (e: any) {
+      setMsg('Error: ' + (e?.message ?? e))
+    } finally {
+      setBusy(false)
+    }
   }
   async function pdf() {
     if (!professorId) return
@@ -54,17 +68,30 @@ export function Liquidaciones() {
             <input type="number" value={year} onChange={(e) => setYear(Number(e.target.value))} />
           </Field>
         </div>
-        <div style={{ display: 'flex', gap: 8 }}>
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
           <button className="btn primary" onClick={doPreview} disabled={!professorId || busy}>Calcular</button>
           <button className="btn" onClick={save} disabled={!preview}>Guardar</button>
+          <button
+            className="btn primary"
+            onClick={marcarPagado}
+            disabled={!preview || busy || preview?.savedStatus === 'paid'}
+            title="Marca la liquidación de este profesor y mes como pagada"
+          >
+            {preview?.savedStatus === 'paid' ? '✔ Pagado' : 'Marcar como pagado'}
+          </button>
           <button className="btn" onClick={pdf} disabled={!preview}>PDF</button>
+          {preview?.savedStatus === 'paid' && <span className="badge ok">PAGADO</span>}
+          {preview?.savedStatus === 'issued' && <span className="badge open">Por pagar</span>}
         </div>
         {msg && <div className="ok" style={{ marginTop: 10, fontSize: 13 }}>{msg}</div>}
       </div>
 
       {busy ? <Spinner /> : preview && (
         <div className="panel panel-p" style={{ marginTop: 16 }}>
-          <h3 style={{ marginTop: 0 }}>{preview.professorName} — {month}/{year}</h3>
+          <h3 style={{ marginTop: 0 }}>
+            {preview.professorName} — {month}/{year}{' '}
+            {preview.savedStatus === 'paid' && <span className="badge ok">PAGADO</span>}
+          </h3>
           <table className="data">
             <thead><tr><th>Fecha</th><th>Servicio</th><th>Cliente</th><th className="num">Salario</th></tr></thead>
             <tbody>

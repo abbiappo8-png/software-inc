@@ -25,7 +25,7 @@ export function PlanesPago() {
                   <td className="num">{formatCOP(p.principal)}</td>
                   <td className="num">{formatCOP(p.outstanding)}</td>
                   <td><span className={`badge ${p.status === 'settled' ? 'ok' : 'role'}`}>{p.status === 'settled' ? 'Saldado' : 'Activo'}</span></td>
-                  <td><button className="btn ghost" onClick={() => setDetailId(p.id)}>Ver abonos</button></td>
+                  <td><button className="btn primary" onClick={() => setDetailId(p.id)}>Registrar abono</button></td>
                 </tr>
               ))}
             </tbody>
@@ -74,33 +74,64 @@ function PlanDetail({ planId, onClose }: { planId: number; onClose: () => void }
   const { data, loading, reload } = useAsync(() => api.plans.get(planId), [planId])
   const [amount, setAmount] = useState(0)
   const [date, setDate] = useState(todayISO())
+  const [comment, setComment] = useState('')
   const [busy, setBusy] = useState(false)
+  const [err, setErr] = useState<string | null>(null)
+
   async function add() {
+    setErr(null)
+    if (!(amount > 0)) return setErr('Ingresa el monto del abono.')
     setBusy(true)
     try {
-      await api.plans.addInstallment(planId, date, amount, null)
+      await api.plans.addInstallment(planId, date, amount, comment || null)
       setAmount(0)
+      setComment('')
       reload()
+    } catch (e: any) {
+      setErr(e?.message ?? 'Error')
     } finally {
       setBusy(false)
     }
   }
+
   return (
     <Modal title={data ? data.title : 'Plan'} onClose={onClose} footer={<button className="btn" onClick={onClose}>Cerrar</button>}>
       {loading || !data ? <Spinner /> : (
         <div>
-          <p>Saldo inicial: <strong>{formatCOP(data.principal)}</strong> · Pendiente: <strong>{formatCOP(data.outstanding)}</strong></p>
-          <table className="data">
-            <thead><tr><th>Fecha</th><th className="num">Abono</th><th className="num">Saldo</th></tr></thead>
-            <tbody>
-              {data.installments?.map((i) => <tr key={i.id}><td>{i.paidDate}</td><td className="num">{formatCOP(i.amount)}</td><td className="num">{formatCOP(i.balanceAfter)}</td></tr>)}
-            </tbody>
-          </table>
-          <div className="toolbar" style={{ marginTop: 14 }}>
-            <input type="date" value={date} onChange={(e) => setDate(e.target.value)} style={{ width: 160 }} />
-            <input type="number" placeholder="Abono" value={amount || ''} onChange={(e) => setAmount(Number(e.target.value))} style={{ width: 160 }} />
-            <button className="btn primary" onClick={add} disabled={busy || !amount}>Agregar abono</button>
+          <p>
+            Saldo inicial: <strong>{formatCOP(data.principal)}</strong> · Pendiente:{' '}
+            <strong style={{ color: data.outstanding <= 0 ? 'var(--accent, #0a7)' : 'var(--danger)' }}>{formatCOP(data.outstanding)}</strong>
+          </p>
+
+          {/* Registrar abono — destacado */}
+          <div className="panel" style={{ background: 'var(--panel-2, rgba(0,0,0,.03))', marginBottom: 14 }}>
+            <div className="panel-p">
+              <strong>Registrar un abono</strong>
+              <div className="row3" style={{ marginTop: 8 }}>
+                <Field label="Fecha del pago"><input type="date" value={date} onChange={(e) => setDate(e.target.value)} /></Field>
+                <Field label="Monto del abono"><input type="number" min={1} placeholder="0" value={amount || ''} onChange={(e) => setAmount(Number(e.target.value))} /></Field>
+                <Field label="Nota (opcional)"><input value={comment} onChange={(e) => setComment(e.target.value)} placeholder="efectivo, transferencia…" /></Field>
+              </div>
+              {err && <div className="err">{err}</div>}
+              <button className="btn primary" onClick={add} disabled={busy || !(amount > 0)} style={{ marginTop: 6 }}>
+                {busy ? <Spinner /> : 'Agregar abono'}
+              </button>
+            </div>
           </div>
+
+          <strong>Historial de abonos</strong>
+          {data.installments?.length ? (
+            <table className="data" style={{ marginTop: 8 }}>
+              <thead><tr><th>Fecha</th><th className="num">Abono</th><th className="num">Saldo</th><th>Nota</th></tr></thead>
+              <tbody>
+                {data.installments.map((i) => (
+                  <tr key={i.id}><td>{i.paidDate}</td><td className="num">{formatCOP(i.amount)}</td><td className="num">{formatCOP(i.balanceAfter)}</td><td>{i.comment ?? ''}</td></tr>
+                ))}
+              </tbody>
+            </table>
+          ) : (
+            <p className="muted" style={{ marginTop: 8 }}>Todavía no hay abonos. Registra el primero arriba.</p>
+          )}
         </div>
       )}
     </Modal>

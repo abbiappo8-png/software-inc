@@ -406,10 +406,10 @@ function importTransactions(
   const ws = wb.getWorksheet('Club')
   if (!ws) return
   const ins = db.prepare(
-    `INSERT INTO transactions(tx_date,start_min,end_min,service_raw,service_id,is_class,resolved_service_id,
+    `INSERT INTO transactions(tx_date,start_min,end_min,service_raw,service_id,is_class,tx_type,resolved_service_id,
        professor_id,client_id,kite_id,board_id,price_snapshot,professor_pct_snapshot,price_override,comment,
        import_batch_id,source_sheet,source_row)
-     VALUES(@date,@start,@end,@serviceRaw,@serviceId,@isClass,@resolvedId,@prof,@client,@kite,@board,
+     VALUES(@date,@start,@end,@serviceRaw,@serviceId,@isClass,@txType,@resolvedId,@prof,@client,@kite,@board,
        @price,@pct,@override,@comment,@batch,'Club',@row)`
   )
   const findPerson = (raw: string | null, nick = false): number | null => {
@@ -442,6 +442,7 @@ function importTransactions(
       serviceRaw: dRaw,
       serviceId: serviceItem?.id ?? null,
       isClass,
+      txType: isClass ? 'class' : 'service',
       resolvedId: resolvedItem?.id ?? null,
       prof: findPerson(asText(cellVal(row.getCell('F'))), true),
       client: findPerson(asText(cellVal(row.getCell('G')))),

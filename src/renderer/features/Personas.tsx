@@ -1,264 +1,124 @@
-import React, { useEffect, useState } from 'react'
-import { api, useAsync, formatCOP } from '../lib/api'
-import { Avatar, Modal, Field, Spinner, Empty } from '../components/ui'
-import type { Person, PersonInput } from '@shared/types/domain'
+import React, { useState } from 'react'
+import { api, useAsync } from '../lib/api'
+import { Spinner } from '../components/ui'
+import { PersonAvatar } from '../components/PersonAvatar'
+import { EditableTable, GridColumn } from '../components/EditableTable'
+import { ClientProfile } from './ClientProfile'
 
-/** Convierte bytes a base64 por bloques (evita desbordar la pila con fotos grandes). */
-function bytesToBase64(bytes: Uint8Array): string {
-  let binary = ''
-  const chunk = 0x8000
-  for (let i = 0; i < bytes.length; i += chunk) {
-    binary += String.fromCharCode(...bytes.subarray(i, i + chunk))
+type Role = 'client' | 'professor' | 'supplier'
+
+function toPersonInput(r: any) {
+  return {
+    fullName: (r.fullName ?? '').trim(),
+    nickname: r.nickname ?? null,
+    isClient: !!r.isClient,
+    isProfessor: !!r.isProfessor,
+    isSupplier: !!r.isSupplier,
+    passport: r.passport ?? null,
+    email: r.email ? String(r.email).trim() : null,
+    country: r.country ?? null,
+    birthDate: r.birthDate ?? null,
+    birthDateRaw: r.birthDateRaw ?? null,
+    checkIn: r.checkIn ?? null,
+    checkOut: r.checkOut ?? null,
+    takingCourse: !!r.takingCourse,
+    discountPct: Number(r.discountPct ?? 0) || 0,
+    paid: Number(r.paid ?? 0) || 0,
+    stillHere: r.stillHere !== false,
+    comment: r.comment ?? null,
+    photoPath: r.photoPath ?? null
   }
-  return btoa(binary)
-}
-
-const EMPTY: PersonInput = {
-  fullName: '',
-  nickname: null,
-  isClient: true,
-  isProfessor: false,
-  isSupplier: false,
-  passport: null,
-  email: null,
-  country: null,
-  birthDate: null,
-  birthDateRaw: null,
-  checkIn: null,
-  checkOut: null,
-  takingCourse: false,
-  discountPct: 0,
-  paid: 0,
-  stillHere: true,
-  comment: null,
-  photoPath: null
 }
 
 export function Personas() {
-  const [role, setRole] = useState<'client' | 'professor' | 'supplier'>('client')
+  const [role, setRole] = useState<Role>('client')
   const [search, setSearch] = useState('')
-  const [editing, setEditing] = useState<Person | 'new' | null>(null)
-  const { data, loading, reload } = useAsync(() => api.persons.list({ role, search, limit: 500 }), [role, search])
+  const [profileId, setProfileId] = useState<number | null>(null)
+  const { data, loading, reload } = useAsync(() => api.persons.list({ role, search, limit: 1000 }), [role, search])
+
+  async function onCreate(draft: any) {
+    if (!draft.fullName?.trim()) return
+    try {
+      const input: any = toPersonInput({
+        ...draft,
+        [role === 'client' ? 'isClient' : role === 'professor' ? 'isProfessor' : 'isSupplier']: true
+      })
+      await api.persons.create(input)
+      reload()
+    } catch (e: any) {
+      alert(e?.message ?? 'Error al crear')
+    }
+  }
+  async function onUpdate(id: number, patch: any) {
+    const row = data?.find((p) => p.id === id)
+    if (!row) return
+    try {
+      await api.persons.update(id, toPersonInput({ ...row, ...patch }) as any)
+      reload()
+    } catch (e: any) {
+      alert(e?.message ?? 'Error al guardar')
+      reload()
+    }
+  }
+  async function onDelete(id: number) {
+    if (!confirm('¿Eliminar esta persona?')) return
+    await api.persons.remove(id)
+    reload()
+  }
+
+  const columns: GridColumn[] = [
+    {
+      key: 'photo', label: 'Foto', type: 'computed', width: 52, editable: false,
+      render: (r) => <PersonAvatar person={r} onClick={() => setProfileId(r.id)} />
+    },
+    { key: 'fullName', label: 'Nombre', type: 'text', width: 180 },
+    { key: 'nickname', label: 'Apodo', type: 'text', width: 100 },
+    { key: 'passport', label: 'Pasaporte', type: 'text', width: 110 },
+    { key: 'email', label: 'Email', type: 'text', width: 180 },
+    { key: 'country', label: 'País', type: 'text', width: 100 },
+    { key: 'birthDate', label: 'Nacim.', type: 'date', width: 135 },
+    { key: 'checkIn', label: 'Check-in', type: 'date', width: 135 },
+    { key: 'checkOut', label: 'Check-out', type: 'date', width: 135 },
+    { key: 'discountPct', label: 'Desc%', type: 'number', width: 70, align: 'right' },
+    { key: 'paid', label: 'Pagado', type: 'money', width: 105, align: 'right' },
+    { key: 'stillHere', label: 'Activo', type: 'toggle', width: 60, align: 'center' },
+    { key: 'comment', label: 'Comentario', type: 'text', width: 160 }
+  ]
 
   return (
     <div>
       <div className="header">
         <h1>Personas</h1>
-        <button className="btn primary" onClick={() => setEditing('new')}>
-          + Nueva persona
-        </button>
       </div>
-
       <div className="toolbar">
-        <div className="btn-group" style={{ display: 'flex', gap: 6 }}>
-          {(['client', 'professor', 'supplier'] as const).map((r) => (
-            <button key={r} className={`btn ${role === r ? 'primary' : ''}`} onClick={() => setRole(r)}>
-              {r === 'client' ? 'Clientes' : r === 'professor' ? 'Profesores' : 'Proveedores'}
-            </button>
-          ))}
+        <div style={{ display: 'inline-flex', gap: 6 }}>
+          <button className={`btn sm ${role === 'client' ? 'primary' : ''}`} onClick={() => setRole('client')}>Clientes</button>
+          <button className={`btn sm ${role === 'professor' ? 'primary' : ''}`} onClick={() => setRole('professor')}>Profesores</button>
+          <button className={`btn sm ${role === 'supplier' ? 'primary' : ''}`} onClick={() => setRole('supplier')}>Proveedores</button>
         </div>
-        <input className="grow" placeholder="Buscar por nombre, email o pasaporte…" value={search} onChange={(e) => setSearch(e.target.value)} />
+        <input className="grow" placeholder="Buscar por nombre o email…" value={search} onChange={(e) => setSearch(e.target.value)} />
       </div>
 
-      <div className="panel">
-        {loading ? (
-          <div style={{ padding: 24 }}>
-            <Spinner />
-          </div>
-        ) : !data || data.length === 0 ? (
-          <Empty>Sin resultados.</Empty>
-        ) : (
-          <table className="data">
-            <thead>
-              <tr>
-                <th style={{ width: 52 }} />
-                <th>Nombre</th>
-                <th>Roles</th>
-                <th>País</th>
-                <th>Email</th>
-                <th className="num">Desc.</th>
-                <th>Estado</th>
-                <th />
-              </tr>
-            </thead>
-            <tbody>
-              {data.map((p) => (
-                <PersonRow key={p.id} person={p} onEdit={() => setEditing(p)} />
-              ))}
-            </tbody>
-          </table>
-        )}
-      </div>
-
-      {editing && (
-        <PersonForm
-          person={editing === 'new' ? null : editing}
-          onClose={() => setEditing(null)}
-          onSaved={() => {
-            setEditing(null)
-            reload()
-          }}
+      {loading ? (
+        <div className="panel"><div style={{ padding: 24 }}><Spinner /></div></div>
+      ) : (
+        <EditableTable
+          columns={columns}
+          rows={data ?? []}
+          onCreate={onCreate}
+          onUpdate={onUpdate}
+          onDelete={onDelete}
+          canCreate={(d) => !!d.fullName?.trim()}
+          newRowDefaults={{ isClient: role === 'client', isProfessor: role === 'professor', isSupplier: role === 'supplier', stillHere: true }}
+          addLabel="Agregar"
         />
       )}
+      <p className="muted" style={{ marginTop: 10, fontSize: 12 }}>
+        Haz clic en la foto de una persona para ver su perfil e historial. Edita cualquier celda directamente.
+      </p>
+
+      {/* Al cerrar el perfil se recarga la lista: una foto recién tomada aparece en la cuadrícula */}
+      {profileId != null && <ClientProfile personId={profileId} onClose={() => { setProfileId(null); reload() }} />}
     </div>
-  )
-}
-
-function PersonRow({ person, onEdit }: { person: Person; onEdit: () => void }) {
-  const [photo, setPhoto] = useState<string | null>(null)
-  useEffect(() => {
-    if (person.photoThumbPath || person.photoPath) api.persons.photoDataUrl(person.id).then(setPhoto)
-  }, [person.id, person.photoThumbPath])
-  return (
-    <tr>
-      <td>
-        <Avatar dataUrl={photo} name={person.fullName} />
-      </td>
-      <td>
-        <strong>{person.fullName}</strong>
-        {person.nickname && <div className="muted">{person.nickname}</div>}
-      </td>
-      <td>
-        {person.isClient && <span className="badge role">Cliente</span>}
-        {person.isProfessor && <span className="badge role">Profesor</span>}
-        {person.isSupplier && <span className="badge role">Proveedor</span>}
-      </td>
-      <td>{person.country ?? '—'}</td>
-      <td className="muted">{person.email ?? '—'}</td>
-      <td className="num">{person.discountPct ? person.discountPct + '%' : '—'}</td>
-      <td>{person.stillHere ? <span className="badge ok">Activo</span> : <span className="badge off">Inactivo</span>}</td>
-      <td>
-        <button className="btn ghost" onClick={onEdit}>
-          Editar
-        </button>
-      </td>
-    </tr>
-  )
-}
-
-function PersonForm({ person, onClose, onSaved }: { person: Person | null; onClose: () => void; onSaved: () => void }) {
-  const [form, setForm] = useState<PersonInput>(person ? { ...person } : EMPTY)
-  const [photo, setPhoto] = useState<string | null>(null)
-  const [busy, setBusy] = useState(false)
-  const [err, setErr] = useState<string | null>(null)
-
-  useEffect(() => {
-    if (person && (person.photoThumbPath || person.photoPath)) api.persons.photoDataUrl(person.id).then(setPhoto)
-  }, [person])
-
-  const set = (patch: Partial<PersonInput>) => setForm((f) => ({ ...f, ...patch }))
-
-  async function onPhotoFile(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0]
-    if (!file) return
-    const buf = await file.arrayBuffer()
-    const b64 = bytesToBase64(new Uint8Array(buf))
-    setPhoto('data:image/*;base64,' + b64)
-    ;(form as any)._photoB64 = b64
-    setForm((f) => ({ ...f }))
-  }
-
-  async function save() {
-    setErr(null)
-    if (!form.fullName.trim()) return setErr('El nombre es obligatorio.')
-    setBusy(true)
-    try {
-      const payload: PersonInput = { ...form, email: form.email || null }
-      const saved = person ? await api.persons.update(person.id, payload) : await api.persons.create(payload)
-      const b64 = (form as any)._photoB64
-      if (b64) await api.persons.setPhoto(saved.id, b64)
-      onSaved()
-    } catch (e: any) {
-      setErr(e?.message ?? 'Error al guardar')
-    } finally {
-      setBusy(false)
-    }
-  }
-
-  return (
-    <Modal
-      title={person ? 'Editar persona' : 'Nueva persona'}
-      onClose={onClose}
-      footer={
-        <>
-          <button className="btn" onClick={onClose}>
-            Cancelar
-          </button>
-          <button className="btn primary" onClick={save} disabled={busy}>
-            {busy ? <Spinner /> : 'Guardar'}
-          </button>
-        </>
-      }
-    >
-      <div style={{ display: 'flex', gap: 20 }}>
-        <div style={{ textAlign: 'center' }}>
-          <Avatar dataUrl={photo} name={form.fullName || '?'} size="lg" />
-          <label className="btn" style={{ marginTop: 10, display: 'inline-block' }}>
-            Foto…
-            <input type="file" accept="image/*" style={{ display: 'none' }} onChange={onPhotoFile} />
-          </label>
-        </div>
-        <div style={{ flex: 1 }}>
-          <Field label="Nombre completo">
-            <input value={form.fullName} onChange={(e) => set({ fullName: e.target.value })} />
-          </Field>
-          <div className="row2">
-            <Field label="Apodo (profesores)">
-              <input value={form.nickname ?? ''} onChange={(e) => set({ nickname: e.target.value || null })} />
-            </Field>
-            <Field label="Pasaporte / documento">
-              <input value={form.passport ?? ''} onChange={(e) => set({ passport: e.target.value || null })} />
-            </Field>
-          </div>
-        </div>
-      </div>
-
-      <div style={{ marginTop: 6, display: 'flex', gap: 16 }}>
-        <label><input type="checkbox" style={{ width: 'auto' }} checked={form.isClient} onChange={(e) => set({ isClient: e.target.checked })} /> Cliente</label>
-        <label><input type="checkbox" style={{ width: 'auto' }} checked={form.isProfessor} onChange={(e) => set({ isProfessor: e.target.checked })} /> Profesor</label>
-        <label><input type="checkbox" style={{ width: 'auto' }} checked={form.isSupplier} onChange={(e) => set({ isSupplier: e.target.checked })} /> Proveedor</label>
-      </div>
-
-      <div className="row2" style={{ marginTop: 12 }}>
-        <Field label="Email">
-          <input type="email" value={form.email ?? ''} onChange={(e) => set({ email: e.target.value || null })} />
-        </Field>
-        <Field label="País">
-          <input value={form.country ?? ''} onChange={(e) => set({ country: e.target.value || null })} />
-        </Field>
-      </div>
-      <div className="row3">
-        <Field label="Fecha de nacimiento">
-          <input type="date" value={form.birthDate ?? ''} onChange={(e) => set({ birthDate: e.target.value || null })} />
-        </Field>
-        <Field label="Check-in">
-          <input type="date" value={form.checkIn ?? ''} onChange={(e) => set({ checkIn: e.target.value || null })} />
-        </Field>
-        <Field label="Check-out">
-          <input type="date" value={form.checkOut ?? ''} onChange={(e) => set({ checkOut: e.target.value || null })} />
-        </Field>
-      </div>
-      <div className="row3">
-        <Field label="Descuento (%)">
-          <input type="number" min={0} max={100} value={form.discountPct ?? 0} onChange={(e) => set({ discountPct: Number(e.target.value) })} />
-        </Field>
-        <Field label="Ya pagado (COP)">
-          <input type="number" value={form.paid ?? 0} onChange={(e) => set({ paid: Number(e.target.value) })} />
-        </Field>
-        <Field label="Estado">
-          <select value={form.stillHere ? '1' : '0'} onChange={(e) => set({ stillHere: e.target.value === '1' })}>
-            <option value="1">Activo</option>
-            <option value="0">Inactivo</option>
-          </select>
-        </Field>
-      </div>
-      <Field label="Comentario">
-        <textarea rows={2} value={form.comment ?? ''} onChange={(e) => set({ comment: e.target.value || null })} />
-      </Field>
-      {form.birthDateRaw && !form.birthDate && (
-        <div className="err">Fecha de nacimiento original sin interpretar: “{form.birthDateRaw}”. Corrígela arriba.</div>
-      )}
-      {err && <div className="err">{err}</div>}
-    </Modal>
   )
 }

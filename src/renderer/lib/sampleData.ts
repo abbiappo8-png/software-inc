@@ -52,7 +52,11 @@ export const transactions: Transaction[] = [
   tx(9, '2026-07-06', 600, 660, 4, 5, 3, false),
   tx(10, '2026-07-06', 660, 720, 1, 6, 2, false),
   tx(11, '2026-07-08', 480, 540, 4, 5, 1, false),
-  tx(12, '2026-07-08', 540, 660, 5, 6, 4, false)
+  tx(12, '2026-07-08', 540, 660, 5, 6, 4, false),
+  // Préstamo de equipo (alquiler por día)
+  tx(13, '2026-07-09', 540, 900, 6, null, 3, false, 'loan'),
+  // Sesión ABIERTA (entrada sin salida) — pendiente de check-out
+  tx(14, '2026-07-14', 600, null, 1, 5, 8, false)
 ]
 
 export const barProducts: BarProduct[] = [
@@ -104,18 +108,24 @@ function mkPerson(id: number, fullName: string, extra: Partial<Person>): Person 
 function svc(id: number, name: string, hours: number, days: number, price: number, professorPct: number, isClass: boolean, discipline: string): ServiceCatalogItem {
   return { id, name, discipline, seasonYear: 2026, hours, days, price, professorPct, isClass, active: true }
 }
-function tx(id: number, txDate: string, startMin: number, endMin: number, serviceId: number, professorId: number, clientId: number, isClass: boolean): Transaction {
+function tx(id: number, txDate: string, startMin: number, endMin: number | null, serviceId: number, professorId: number | null, clientId: number, isClass: boolean, txType: 'class' | 'loan' | 'service' | 'other' = isClass ? 'class' : 'service'): Transaction {
   const svcItem = services.find((s) => s.id === serviceId)!
   const client = persons.find((p) => p.id === clientId)!
-  const durationH = (endMin - startMin) / 60
+  const open = endMin == null
+  const durationMin = open ? null : endMin - startMin
   const factor = (100 - (client.discountPct || 0)) / 100
-  const price = svcItem.days > 0 ? Math.round(factor * svcItem.price / svcItem.days) : Math.round(factor * (durationH / svcItem.hours) * svcItem.price)
-  const salary = Math.round(price * svcItem.professorPct)
+  const price = open
+    ? null
+    : svcItem.days > 0
+      ? Math.round(factor * svcItem.price / svcItem.days)
+      : Math.round(factor * ((durationMin as number) / 60 / svcItem.hours) * svcItem.price)
+  const salary = professorId != null && price != null ? Math.round(price * svcItem.professorPct) : 0
   return {
-    id, txDate, startMin, endMin, serviceRaw: svcItem.name, serviceId, isClass,
+    id, txDate, startMin, endMin, serviceRaw: svcItem.name, serviceId, isClass, txType,
     resolvedServiceId: serviceId, professorId, clientId, kiteId: null, boardId: null,
-    priceSnapshot: price, professorPctSnapshot: svcItem.professorPct, priceOverride: null,
-    comment: null, priceEffective: price, durationMin: endMin - startMin, professorSalary: salary
+    priceSnapshot: price, professorPctSnapshot: professorId != null ? svcItem.professorPct : null,
+    priceOverride: null, checkInAt: open ? `${txDate}T10:00:00.000Z` : null, comment: null,
+    priceEffective: price, durationMin, professorSalary: salary, isOpen: open
   }
 }
 function bp(id: number, name: string, boxPrice: number, unitsPerBox: number, sellPrice: number): BarProduct {

@@ -42,6 +42,20 @@ export function create(input: ExpenseInput): Expense {
   return getDb().prepare('SELECT * FROM expenses WHERE id=?').get(id) ? mapRow(getDb().prepare('SELECT * FROM expenses WHERE id=?').get(id)) : (null as any)
 }
 
+export function update(id: number, input: ExpenseInput): Expense {
+  getDb()
+    .prepare(
+      `UPDATE expenses SET expense_date=@date, supply_name=@supply, count=@count, area_name=@area,
+        area_person_id=@areaId, supplier_id=@supId, amount_out=@amount, comment=@comment WHERE id=@id`
+    )
+    .run({
+      id, date: input.expenseDate, supply: input.supplyName, count: input.count ?? 1,
+      area: input.areaName, areaId: input.areaPersonId, supId: input.supplierId,
+      amount: Math.round(input.amountOut), comment: input.comment
+    })
+  return mapRow(getDb().prepare('SELECT * FROM expenses WHERE id=?').get(id))
+}
+
 export function list(from?: string, to?: string): Expense[] {
   const where: string[] = []
   const p: any = {}

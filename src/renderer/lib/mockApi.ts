@@ -16,6 +16,68 @@ const barProducts = sample.barProducts.map((p) => ({ ...p }))
 const barSales = sample.barSales.map((s) => ({ ...s }))
 const expenses = sample.expenses.map((e) => ({ ...e }))
 const plans = sample.paymentPlans.map((p) => ({ ...p, installments: p.installments.map((i) => ({ ...i })) }))
+const savedBills: any[] = [] // facturas guardadas en la sesión demo (para markPaid)
+const photos = new Map<number, string>() // fotos de perfil (base64) de la sesión demo
+const settlementStatus = new Map<string, 'issued' | 'paid'>() // estado de liquidaciones (profId-YYYY-MM)
+
+// Google Forms simulado (la sincronización real es de la app instalada)
+const demoForms = [
+  { key: 'reservas', name: 'Reservas de clases (demo)', csvUrl: '(demo)', formUrl: '' }
+]
+const formResponses: any[] = [
+  {
+    id: 901, formKey: 'reservas', rowHash: 'demo1', submittedAt: '2026-07-13T09:12:00',
+    values: { 'Marca temporal': '13/07/2026 9:12', 'Nombre completo': 'Lucía Fernández', 'Correo electrónico': 'lucia@example.com', 'Fecha de la clase': '16/07/2026', 'Hora': '8:00 a. m.', '¿Qué clase quieres?': 'Clase de kite (curso)', 'Comentario': 'Primera vez' },
+    status: 'new', importedPersonId: null, importedTxId: null
+  },
+  {
+    id: 902, formKey: 'reservas', rowHash: 'demo2', submittedAt: '2026-07-13T18:40:00',
+    values: { 'Marca temporal': '13/07/2026 18:40', 'Nombre completo': 'Marco Rossi', 'Correo electrónico': 'marco@example.com', 'Fecha de la clase': '17/07/2026', 'Hora': '10:30 a. m.', '¿Qué clase quieres?': 'Wing foil', 'Comentario': '' },
+    status: 'new', importedPersonId: null, importedTxId: null
+  },
+  {
+    id: 903, formKey: 'reservas', rowHash: 'demo3', submittedAt: '2026-07-12T14:05:00',
+    values: { 'Marca temporal': '12/07/2026 14:05', 'Nombre completo': 'Ana Restrepo', 'Correo electrónico': 'ana@example.com', 'Fecha de la clase': '14/07/2026', 'Hora': '9:00 a. m.', '¿Qué clase quieres?': 'Clase de kite (curso)', 'Comentario': 'Cliente frecuente' },
+    status: 'imported', importedPersonId: 1, importedTxId: null
+  }
+]
+
+/** Auto-detección de campos (versión ligera del main, para el demo). */
+function guessLite(values: Record<string, string>) {
+  const norm = (s: string) => s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '')
+  const pick = (keys: string[], exclude: string[] = []) => {
+    for (const [k, v] of Object.entries(values)) {
+      const nk = norm(k)
+      if (exclude.some((e) => nk.includes(e))) continue
+      if (keys.some((key) => nk.includes(key)) && v?.trim()) return v.trim()
+    }
+    return null
+  }
+  const parseDate = (v: string | null) => {
+    if (!v) return null
+    const m = /(\d{1,2})[\/.-](\d{1,2})[\/.-](\d{4})/.exec(v)
+    return m ? `${m[3]}-${m[2].padStart(2, '0')}-${m[1].padStart(2, '0')}` : null
+  }
+  const parseHour = (v: string | null) => {
+    if (!v) return null
+    const m = /(\d{1,2})[:. ](\d{2})/.exec(v)
+    if (!m) return null
+    let h = parseInt(m[1], 10)
+    if (/p\.?\s?m/i.test(v) && h < 12) h += 12
+    return h * 60 + parseInt(m[2], 10)
+  }
+  return {
+    fullName: pick(['nombre', 'name'], ['apodo']),
+    email: pick(['correo', 'email', 'mail']),
+    passport: pick(['pasaporte', 'documento', 'cedula']),
+    country: pick(['pais', 'nacionalidad']),
+    birthDate: parseDate(pick(['nacimiento', 'birth'])),
+    date: parseDate(pick(['fecha', 'dia'], ['nacimiento', 'marca temporal'])),
+    startMin: parseHour(pick(['hora'], ['marca temporal'])),
+    service: pick(['clase', 'servicio', 'curso', 'actividad'], ['fecha', 'dia', 'hora']),
+    comment: pick(['comentario', 'mensaje', 'nota'])
+  }
+}
 
 let nextId = 1000
 const roundCOP = (n: number) => Math.round(n)
@@ -66,8 +128,16 @@ export const mockApi: AppApi = {
       const i = persons.findIndex((p) => p.id === id)
       if (i >= 0) persons.splice(i, 1)
     },
-    setPhoto: async () => ({ photoPath: '(demo)', photoThumbPath: '(demo)' }),
-    photoDataUrl: async () => null
+    setPhoto: async (id, dataBase64) => {
+      photos.set(id, String(dataBase64).replace(/^data:image\/\w+;base64,/, ''))
+      const p = persons.find((x) => x.id === id)
+      if (p) {
+        p.photoPath = '(demo)'
+        p.photoThumbPath = '(demo)'
+      }
+      return { photoPath: '(demo)', photoThumbPath: '(demo)' }
+    },
+    photoDataUrl: async (id) => (photos.has(id) ? 'data:image/jpeg;base64,' + photos.get(id) : null)
   },
   catalog: {
     listServices: async () => services.map((s) => ({ ...s })),
@@ -81,7 +151,17 @@ export const mockApi: AppApi = {
       if (i >= 0) services[i] = { ...(s as any), id }
       return services[i]
     },
-    listEquipment: async () => equipment.map((e) => ({ ...e }))
+    listEquipment: async () => equipment.map((e) => ({ ...e })),
+    createEquipment: async (e) => {
+      const item = { ...(e as any), id: ++nextId }
+      equipment.push(item)
+      return item
+    },
+    updateEquipment: async (id, e) => {
+      const i = equipment.findIndex((x) => x.id === id)
+      if (i >= 0) equipment[i] = { ...(e as any), id }
+      return equipment[i]
+    }
   },
   transactions: {
     list: async (filter) => {
@@ -90,25 +170,31 @@ export const mockApi: AppApi = {
       if (filter?.professorId) r = r.filter((t) => t.professorId === filter.professorId)
       return r.map((t) => ({ ...t })).sort((a, b) => b.txDate.localeCompare(a.txDate))
     },
+    preview: async (input: any) => computeTx(input),
     create: async (input: any) => {
-      const svc = services.find((s) => s.id === input.serviceId)
-      const client = persons.find((p) => p.id === input.clientId)
-      const durationMin = input.endMin != null && input.startMin != null ? input.endMin - input.startMin : null
-      let price = input.priceOverride ?? null
-      if (price == null && svc && durationMin != null) {
-        const factor = (100 - (client?.discountPct ?? 0)) / 100
-        price = svc.days > 0 ? roundCOP((factor * svc.price) / svc.days) : roundCOP(factor * (durationMin / 60 / svc.hours) * svc.price)
-      }
-      const salary = svc && price != null ? roundCOP(price * svc.professorPct) : 0
-      const t = {
-        id: ++nextId, txDate: input.txDate, startMin: input.startMin, endMin: input.endMin,
-        serviceRaw: svc?.name ?? null, serviceId: input.serviceId, isClass: !!input.isClass,
-        resolvedServiceId: input.serviceId, professorId: input.professorId, clientId: input.clientId,
-        kiteId: input.kiteId, boardId: input.boardId, priceSnapshot: price, professorPctSnapshot: svc?.professorPct ?? null,
-        priceOverride: input.priceOverride, comment: input.comment ?? null,
-        priceEffective: price, durationMin, professorSalary: salary
-      }
+      const t = mkTxRow(++nextId, input)
       transactions.push(t as any)
+      return t as any
+    },
+    update: async (id: number, input: any) => {
+      const i = transactions.findIndex((t) => t.id === id)
+      if (i < 0) throw new Error('Transacción no encontrada')
+      const t = mkTxRow(id, input, id, transactions[i].checkInAt)
+      transactions[i] = t as any
+      return t as any
+    },
+    checkout: async (id: number, endMin?: number | null) => {
+      const i = transactions.findIndex((t) => t.id === id)
+      if (i < 0) throw new Error('Transacción no encontrada')
+      const cur = transactions[i]
+      const input = {
+        txDate: cur.txDate, startMin: cur.startMin, endMin: endMin ?? nowMinutes(),
+        serviceId: cur.serviceId, isClass: cur.isClass, txType: cur.txType, clientId: cur.clientId,
+        professorId: cur.professorId, kiteId: cur.kiteId, boardId: cur.boardId,
+        priceOverride: cur.priceOverride, comment: cur.comment
+      }
+      const t = mkTxRow(id, input, id, cur.checkInAt)
+      transactions[i] = t as any
       return t as any
     },
     remove: async (id) => {
@@ -117,14 +203,35 @@ export const mockApi: AppApi = {
     }
   },
   bar: {
-    listProducts: async () =>
-      barProducts.map((p) => {
-        const purchased = expenses.filter((e) => e.supplyName === p.name).reduce((a, b) => a + (b.count || 0), 0)
-        const sold = barSales.filter((s) => s.productId === p.id).reduce((a, b) => a + (b.qty || 0), 0)
-        return { ...p, stock: purchased - sold }
-      }),
+    listProducts: async () => barProducts.map((p) => ({ ...p, stock: stockOf(p) })),
+    createProduct: async (input: any) => {
+      const p = { id: ++nextId, name: input.name, boxPrice: input.boxPrice ?? null, unitsPerBox: input.unitsPerBox ?? null, sellPrice: input.sellPrice ?? null, active: input.active !== false, unitCost: mockUnitCost(input.boxPrice, input.unitsPerBox), stock: 0 }
+      barProducts.push(p)
+      return p
+    },
+    updateProduct: async (id: number, input: any) => {
+      const i = barProducts.findIndex((x) => x.id === id)
+      if (i >= 0) {
+        const oldName = barProducts[i].name
+        barProducts[i] = { ...barProducts[i], name: input.name, boxPrice: input.boxPrice ?? null, unitsPerBox: input.unitsPerBox ?? null, sellPrice: input.sellPrice ?? null, active: input.active !== false, unitCost: mockUnitCost(input.boxPrice, input.unitsPerBox) }
+        // Igual que el repo real: al renombrar, migrar el historial de compras para no perder stock.
+        if (oldName !== input.name) expenses.forEach((e) => { if (e.supplyName === oldName) e.supplyName = input.name })
+      }
+      return { ...barProducts[i], stock: stockOf(barProducts[i]) }
+    },
+    restock: async (input: any) => {
+      const p = barProducts.find((x) => x.id === input.productId)
+      if (!p) throw new Error('Producto no encontrado')
+      if (!(input.units > 0)) throw new Error('Las unidades deben ser mayores que cero')
+      expenses.push({ id: ++nextId, expenseDate: input.date, supplyName: p.name, count: input.units, areaName: null, areaPersonId: null, supplierId: null, supplierRaw: null, amountOut: roundCOP(input.amount || 0), comment: input.comment ?? `Compra de inventario: ${p.name}` })
+      return { ...p, stock: stockOf(p) }
+    },
     createSale: async (input: any) => {
-      const p = barProducts.find((x) => x.id === input.productId)!
+      const p = barProducts.find((x) => x.id === input.productId)
+      if (!p) throw new Error('Producto no encontrado')
+      const available = stockOf(p)
+      if (!(input.qty > 0)) throw new Error('Cantidad inválida')
+      if (available < input.qty) throw new Error(`Stock insuficiente de ${p.name} (disponible: ${available})`)
       const total = roundCOP(input.qty * (p.sellPrice ?? 0))
       const s = { id: ++nextId, saleDate: input.saleDate, clientId: input.clientId ?? null, clientRaw: null, productId: input.productId, productRaw: p.name, qty: input.qty, total, paidCash: !!input.paidCash, alreadyPaid: !!input.alreadyPaid }
       barSales.push(s)
@@ -135,9 +242,15 @@ export const mockApi: AppApi = {
   expenses: {
     list: async () => expenses.map((e) => ({ ...e })).sort((a, b) => b.expenseDate.localeCompare(a.expenseDate)),
     create: async (input: any) => {
-      const e = { id: ++nextId, expenseDate: input.expenseDate, supplyName: input.supplyName, count: input.count ?? 1, areaName: null, areaPersonId: input.areaPersonId ?? null, supplierId: null, supplierRaw: null, amountOut: roundCOP(input.amountOut), comment: input.comment ?? null }
+      const e = { id: ++nextId, expenseDate: input.expenseDate, supplyName: input.supplyName ?? null, count: input.count ?? 1, areaName: input.areaName ?? null, areaPersonId: input.areaPersonId ?? null, supplierId: input.supplierId ?? null, supplierRaw: null, amountOut: roundCOP(input.amountOut || 0), comment: input.comment ?? null }
       expenses.push(e)
       return e
+    },
+    update: async (id: number, input: any) => {
+      const i = expenses.findIndex((e) => e.id === id)
+      if (i < 0) throw new Error('Gasto no encontrado')
+      expenses[i] = { ...expenses[i], expenseDate: input.expenseDate, supplyName: input.supplyName ?? null, count: input.count ?? 1, areaName: input.areaName ?? null, areaPersonId: input.areaPersonId ?? null, supplierId: input.supplierId ?? null, amountOut: roundCOP(input.amountOut || 0), comment: input.comment ?? null }
+      return expenses[i]
     },
     remove: async (id) => {
       const i = expenses.findIndex((e) => e.id === id)
@@ -148,7 +261,20 @@ export const mockApi: AppApi = {
     preview: async (clientId, opts = {}) => buildBill(clientId, opts),
     save: async (clientId, opts = {}) => {
       const b = buildBill(clientId, opts)
-      return { id: ++nextId, clientId, billDate: opts.billDate ?? new Date().toISOString().slice(0, 10), lodgingDays: 0, lodgingRate: 0, discountPct: opts.discountPct ?? 0, deductions: opts.deduction ?? 0, alreadyPaid: b.result.alreadyPaid, cardSurcharge: !!opts.cardSurcharge, subtotal: b.result.subtotal, total: b.result.total, netToPay: b.result.netToPay, status: 'issued', pdfPath: null, emailedAt: null, notes: null, items: b.items }
+      const bill = { id: ++nextId, clientId, billDate: opts.billDate ?? new Date().toISOString().slice(0, 10), lodgingDays: 0, lodgingRate: 0, discountPct: opts.discountPct ?? 0, deductions: opts.deduction ?? 0, alreadyPaid: b.result.alreadyPaid, cardSurcharge: !!opts.cardSurcharge, subtotal: b.result.subtotal, total: b.result.total, netToPay: b.result.netToPay, status: 'issued' as const, pdfPath: null, emailedAt: null, notes: null, items: b.items }
+      savedBills.push(bill as any)
+      return bill as any
+    },
+    markPaid: async (billId) => {
+      const bill = savedBills.find((b) => b.id === billId)
+      if (!bill) throw new Error('Factura no encontrada')
+      if (bill.status !== 'paid') {
+        bill.status = 'paid'
+        // El pago cubre el neto pendiente: el saldo del cliente queda en 0.
+        const p = persons.find((x) => x.id === bill.clientId)
+        if (p) p.paid = (p.paid ?? 0) + bill.netToPay
+      }
+      return { ...bill }
     },
     pdf: notAvailable,
     email: async () => ({ ok: false, error: 'Disponible en la app instalada.' })
@@ -157,7 +283,15 @@ export const mockApi: AppApi = {
     preview: async (professorId, year, month) => buildSettlement(professorId, year, month),
     save: async (professorId, year, month) => {
       const s = buildSettlement(professorId, year, month)
-      return { id: ++nextId, professorId, periodYear: year, periodMonth: month, grossSalary: s.result.gross, barDiscount: s.result.barDiscount, expensesAssigned: 0, netAmount: s.result.net, status: 'issued', pdfPath: null, emailedAt: null }
+      const prefix = `${year}-${String(month).padStart(2, '0')}`
+      if (!settlementStatus.has(`${professorId}-${prefix}`)) settlementStatus.set(`${professorId}-${prefix}`, 'issued')
+      return { id: ++nextId, professorId, periodYear: year, periodMonth: month, grossSalary: s.result.gross, barDiscount: s.result.barDiscount, expensesAssigned: 0, netAmount: s.result.net, status: settlementStatus.get(`${professorId}-${prefix}`) ?? 'issued', pdfPath: null, emailedAt: null }
+    },
+    markPaid: async (professorId, year, month) => {
+      const s = buildSettlement(professorId, year, month)
+      const prefix = `${year}-${String(month).padStart(2, '0')}`
+      settlementStatus.set(`${professorId}-${prefix}`, 'paid')
+      return { id: ++nextId, professorId, periodYear: year, periodMonth: month, grossSalary: s.result.gross, barDiscount: s.result.barDiscount, expensesAssigned: 0, netAmount: s.result.net, status: 'paid', pdfPath: null, emailedAt: null }
     },
     pdf: notAvailable
   },
@@ -165,7 +299,8 @@ export const mockApi: AppApi = {
     dailyCashflow: async () => {
       const days: Record<string, { date: string; inClients: number; inBar: number; out: number }> = {}
       const touch = (d: string) => (days[d] ??= { date: d, inClients: 0, inBar: 0, out: 0 })
-      transactions.forEach((t) => (touch(t.txDate).inClients += t.priceEffective ?? 0))
+      // Las sesiones abiertas aún no son ingreso (se cobran al registrar la salida).
+      transactions.filter((t) => t.endMin != null).forEach((t) => (touch(t.txDate).inClients += t.priceEffective ?? 0))
       barSales.forEach((s) => (touch(s.saleDate).inBar += s.total))
       expenses.forEach((e) => (touch(e.expenseDate).out += e.amountOut))
       const sorted = Object.values(days).sort((a, b) => a.date.localeCompare(b.date))
@@ -182,7 +317,7 @@ export const mockApi: AppApi = {
     monthSummary: async (year, month) => {
       const prefix = `${year}-${String(month).padStart(2, '0')}`
       const incomeClients =
-        transactions.filter((t) => monthOf(t.txDate) === prefix).reduce((a, b) => a + (b.priceEffective ?? 0), 0) +
+        transactions.filter((t) => monthOf(t.txDate) === prefix && t.endMin != null).reduce((a, b) => a + (b.priceEffective ?? 0), 0) +
         barSales.filter((s) => monthOf(s.saleDate) === prefix).reduce((a, b) => a + b.total, 0)
       const professorSalaries = professorsWithSalary(prefix)
       const salariesTotal = professorSalaries.reduce((a, b) => a + b.amount, 0)
@@ -207,7 +342,7 @@ export const mockApi: AppApi = {
     yearBalance: async () => {
       const map = new Map<number, { in: number; out: number }>()
       const touch = (y: number) => (map.get(y) ?? map.set(y, { in: 0, out: 0 }).get(y)!)
-      transactions.forEach((t) => (touch(+t.txDate.slice(0, 4)).in += t.priceEffective ?? 0))
+      transactions.filter((t) => t.endMin != null).forEach((t) => (touch(+t.txDate.slice(0, 4)).in += t.priceEffective ?? 0))
       barSales.forEach((s) => (touch(+s.saleDate.slice(0, 4)).in += s.total))
       expenses.forEach((e) => (touch(+e.expenseDate.slice(0, 4)).out += e.amountOut))
       return [...map.entries()].sort((a, b) => a[0] - b[0]).map(([year, v]) => ({ year, in: v.in, out: v.out }))
@@ -216,7 +351,7 @@ export const mockApi: AppApi = {
       clients: persons.filter((p) => p.isClient).length,
       professors: persons.filter((p) => p.isProfessor).length,
       transactions: transactions.length,
-      incomeAll: transactions.reduce((a, b) => a + (b.priceEffective ?? 0), 0),
+      incomeAll: transactions.filter((t) => t.endMin != null).reduce((a, b) => a + (b.priceEffective ?? 0), 0),
       expensesAll: expenses.reduce((a, b) => a + b.amountOut, 0),
       barSales: barSales.length
     })
@@ -233,19 +368,19 @@ export const mockApi: AppApi = {
       })
       return { ...p, installments, outstanding: bal }
     },
-    create: async (title, personId, principal) => {
-      const p = { id: ++nextId, title, personId, equipmentId: null, principal, startDate: null, status: 'active' as const, installments: [] }
+    create: async (title, personId, principal, startDate) => {
+      const p = { id: ++nextId, title, personId, equipmentId: null, principal, startDate: startDate ?? null, status: 'active' as const, installments: [] }
       plans.push(p)
       return { ...p, outstanding: principal }
     },
-    addInstallment: async (planId, paidDate, amount) => {
+    addInstallment: async (planId, paidDate, amount, comment) => {
       const p = plans.find((x) => x.id === planId)!
-      p.installments.push({ id: ++nextId, planId, paidDate, amount, comment: null })
+      p.installments.push({ id: ++nextId, planId, paidDate, amount, comment: comment ?? null })
       return { ...p, outstanding: outstanding(p) }
     }
   },
   settings: {
-    getCompany: async () => ({ companyName: 'Escuela de Deportes Acuáticos (DEMO)', companyNit: '', cardSurchargePct: 0.05, currency: 'COP' }),
+    getCompany: async () => ({ companyName: 'Kite Addict Colombia (DEMO)', companyNit: '', cardSurchargePct: 0.05, currency: 'COP' }),
     setCompany: async () => undefined,
     getSmtp: async () => ({ host: '', port: 587, user: '', from: '', hasPassword: false }),
     setSmtp: async () => undefined,
@@ -253,11 +388,149 @@ export const mockApi: AppApi = {
     setBarDiscount: async () => undefined,
     getBarDiscount: async () => 0
   },
+  forms: {
+    list: async () => demoForms.map((f) => ({ ...f })),
+    saveConfig: async (cfg) => {
+      // Igual que el backend real: descarta filas vacías y genera el slug con normalize.
+      const norm = (s: string) => s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '')
+      const slug = (s: string) => norm(s).replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'form'
+      demoForms.length = 0
+      demoForms.push(
+        ...cfg
+          .filter((f) => f.name?.trim() || f.csvUrl?.trim() || f.formUrl?.trim())
+          .map((f) => ({ key: f.key || slug(f.name || 'form'), name: (f.name || 'Formulario').trim(), csvUrl: (f.csvUrl || '').trim(), formUrl: (f.formUrl || '').trim() }))
+      )
+    },
+    sync: async (formKey) => ({ formKey, fetched: formResponses.filter((r) => r.formKey === formKey).length, added: 0 }),
+    responses: async (formKey, status) =>
+      formResponses
+        .filter((r) => r.formKey === formKey && (!status || r.status === status))
+        .map((r) => ({ ...r, guess: guessLite(r.values) })),
+    convert: async (responseId, kind, edited) => {
+      const r = formResponses.find((x) => x.id === responseId)
+      if (!r) throw new Error('Respuesta no encontrada')
+      if (r.status !== 'new') return { ...r } // ni reimportar ni resucitar una ignorada
+      const g = { ...guessLite(r.values), ...(edited ?? {}) }
+      if (!g.fullName) throw new Error('La respuesta no tiene nombre.')
+      if (kind === 'reservation' && !g.date) throw new Error('La fecha de la reserva no es válida: corrígela antes de crear la reserva.')
+      // Dedupe pasaporte → email → nombre (y marca is_client en la existente).
+      const nm = (s?: string | null) => (s ?? '').trim().toLowerCase()
+      let person = persons.find(
+        (p) =>
+          (g.passport && nm(p.passport) === nm(g.passport)) ||
+          (g.email && nm(p.email) === nm(g.email)) ||
+          nm(p.fullName) === nm(g.fullName)
+      )
+      if (person) person.isClient = true
+      else {
+        person = { id: ++nextId, fullName: g.fullName, nickname: null, isClient: true, isProfessor: false, isSupplier: false, passport: g.passport ?? null, email: g.email ?? null, country: g.country ?? null, birthDate: g.birthDate ?? null, birthDateRaw: null, checkIn: null, checkOut: null, takingCourse: false, discountPct: 0, paid: 0, stillHere: true, comment: 'Registrado desde Google Forms', photoPath: null, photoThumbPath: null }
+        persons.push(person)
+      }
+      r.importedPersonId = person.id
+      if (kind === 'reservation') {
+        // Mapea al catálogo como el backend: servicio no-clase => serviceId; si no, clase de curso.
+        const svc = g.service ? services.find((s) => s.name.toLowerCase() === g.service!.toLowerCase()) : null
+        const t = mkTxRow(++nextId, {
+          txDate: g.date, startMin: g.startMin, endMin: null,
+          serviceId: svc && !svc.isClass ? svc.id : null, isClass: svc ? svc.isClass : true, txType: 'class',
+          clientId: person.id, professorId: null, kiteId: null, boardId: null, priceOverride: null,
+          comment: ['Reserva de Google Forms', g.service && !svc ? `(${g.service})` : null].filter(Boolean).join(' · ')
+        })
+        transactions.push(t as any)
+        r.importedTxId = t.id
+      }
+      r.status = 'imported'
+      return { ...r }
+    },
+    ignore: async (responseId) => {
+      const r = formResponses.find((x) => x.id === responseId)
+      if (!r) throw new Error('Respuesta no encontrada')
+      if (r.status === 'new') r.status = 'ignored'
+      return { ...r }
+    }
+  },
   backup: { create: notAvailable, list: async () => [] },
   exports: { balance: notAvailable, monthSummary: notAvailable, openFolder: async () => undefined }
 }
 
 // ---- helpers de cálculo ----
+/** Costo unitario: null si no hay precio de caja (igual que services/bar.ts unitCost). */
+function mockUnitCost(boxPrice: number | null | undefined, unitsPerBox: number | null | undefined): number | null {
+  if (boxPrice == null || !unitsPerBox) return null
+  return roundCOP(boxPrice / unitsPerBox)
+}
+
+function stockOf(p: { id: number; name: string }): number {
+  const purchased = expenses.filter((e) => e.supplyName === p.name).reduce((a, b) => a + (b.count || 0), 0)
+  const sold = barSales.filter((s) => s.productId === p.id).reduce((a, b) => a + (b.qty || 0), 0)
+  return purchased - sold
+}
+
+/** Minutos desde medianoche de la hora local actual (entrada/salida "ahora"). */
+function nowMinutes(): number {
+  const d = new Date()
+  return d.getHours() * 60 + d.getMinutes()
+}
+
+/** Detecta el nivel de curso del cliente por horas de clase acumuladas (como en la app real). */
+function detectCourseId(clientId: number | null, asOf?: string, excludeId?: number): number | null {
+  const ladder = services.filter((s) => s.isClass).sort((a, b) => a.hours - b.hours)
+  if (!ladder.length) return null
+  let hours = 0
+  transactions
+    .filter((t) => t.clientId === clientId && t.isClass && t.id !== excludeId && (!asOf || t.txDate <= asOf))
+    .forEach((t) => (hours += (t.durationMin ?? 0) / 60))
+  let reached = ladder[0]
+  for (const c of ladder) if (c.hours <= hours) reached = c
+  return reached.id
+}
+
+/** Cálculo del precio/salario/nivel de una clase o servicio, sin guardar. */
+function computeTx(input: any, excludeId?: number) {
+  const open = input.endMin == null
+  const durationMin = !open && input.startMin != null ? input.endMin - input.startMin : null
+  const resolvedServiceId = input.isClass ? detectCourseId(input.clientId, input.txDate, excludeId) : input.serviceId ?? null
+  const svc = services.find((s) => s.id === resolvedServiceId)
+  const client = persons.find((p) => p.id === input.clientId)
+  let price = input.priceOverride ?? null
+  // Invariante entrada/salida: sesión abierta => sin precio automático (ni "por día");
+  // el precio se calcula al registrar la salida.
+  if (price == null && svc && !open) {
+    const factor = (100 - (client?.discountPct ?? 0)) / 100
+    if (svc.days > 0) price = roundCOP((factor * svc.price) / svc.days)
+    else if (durationMin != null && svc.hours) price = roundCOP(factor * (durationMin / 60 / svc.hours) * svc.price)
+  }
+  const salary = input.professorId != null && svc && price != null ? roundCOP(price * svc.professorPct) : 0
+  return {
+    resolvedServiceId,
+    serviceName: svc?.name ?? null,
+    isClass: !!input.isClass,
+    courseDetected: input.isClass ? svc?.name ?? null : null,
+    durationMin,
+    priceEffective: price,
+    professorSalary: salary
+  }
+}
+
+/** Construye una fila Transaction completa (para create/update/checkout del demo). */
+function mkTxRow(id: number, input: any, excludeId?: number, prevCheckInAt?: string | null) {
+  const c = computeTx(input, excludeId)
+  const open = input.endMin == null
+  return {
+    id, txDate: input.txDate, startMin: input.startMin, endMin: input.endMin ?? null,
+    serviceRaw: c.serviceName, serviceId: input.serviceId ?? null, isClass: !!input.isClass,
+    txType: input.txType ?? (input.isClass ? 'class' : 'service'),
+    resolvedServiceId: c.resolvedServiceId, professorId: input.professorId ?? null, clientId: input.clientId ?? null,
+    kiteId: input.kiteId ?? null, boardId: input.boardId ?? null, priceSnapshot: c.priceEffective,
+    professorPctSnapshot: input.professorId != null ? services.find((s) => s.id === c.resolvedServiceId)?.professorPct ?? null : null,
+    priceOverride: input.priceOverride ?? null,
+    // check_in_at se fija al crear la entrada y se PRESERVA en updates/checkout (como el backend).
+    checkInAt: excludeId != null ? prevCheckInAt ?? null : open ? new Date().toISOString() : null,
+    comment: input.comment ?? null, priceEffective: c.priceEffective, durationMin: c.durationMin,
+    professorSalary: c.professorSalary, isOpen: open
+  }
+}
+
 function isProfessor(id: number | null): boolean {
   return !!persons.find((p) => p.id === id)?.isProfessor
 }
@@ -273,7 +546,8 @@ function outstanding(p: { principal: number; installments: { amount: number }[] 
 }
 function buildBill(clientId: number, opts: any) {
   const client = persons.find((p) => p.id === clientId)!
-  const txs = transactions.filter((t) => t.clientId === clientId)
+  // Excluir sesiones abiertas (sin salida): aún no tienen precio.
+  const txs = transactions.filter((t) => t.clientId === clientId && t.endMin != null)
   const sales = barSales.filter((s) => s.clientId === clientId)
   const items = [
     ...txs.map((t) => ({ kind: 'service' as const, transactionId: t.id, description: `${t.serviceRaw ?? 'Servicio'} (${t.txDate})`, qty: 1, unitPrice: t.priceEffective ?? 0, lineTotal: t.priceEffective ?? 0 })),
@@ -295,5 +569,5 @@ function buildSettlement(professorId: number, year: number, month: number) {
   const rows = transactions.filter((t) => t.professorId === professorId && monthOf(t.txDate) === prefix)
   const salaryRows = rows.map((t) => ({ date: t.txDate, service: t.serviceRaw, client: persons.find((p) => p.id === t.clientId)?.fullName ?? null, salary: t.professorSalary ?? 0 }))
   const gross = salaryRows.reduce((a, b) => a + b.salary, 0)
-  return { professorId, professorName: prof.fullName, year, month, salaryRows, outcomeRows: [], result: { gross, barDiscount: 0, expenses: 0, installments: 0, net: gross } }
+  return { professorId, professorName: prof.fullName, year, month, salaryRows, outcomeRows: [], result: { gross, barDiscount: 0, expenses: 0, installments: 0, net: gross }, savedStatus: settlementStatus.get(`${professorId}-${prefix}`) ?? null }
 }

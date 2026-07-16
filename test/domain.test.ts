@@ -227,3 +227,59 @@ test('paymentPlans: amortización reproduce "ozuna pago de cometa"', () => {
   assert.equal(rows[1].balanceAfter, 3029500)
   assert.equal(outstanding(4028000, []), 4028000)
 })
+
+// --------------------------------------------------------------------------
+import { parseCsv, csvToObjects } from '../src/main/services/csv'
+import { rowHash, guess, parseHourish } from '../src/main/services/formsGuess'
+
+test('csv: comillas, comas y saltos dentro de celdas', () => {
+  const text = 'Nombre,Comentario\n"Pérez, Ana","Dijo ""hola""\ny se fue"\nBeto,simple'
+  const rows = parseCsv(text)
+  assert.equal(rows.length, 3)
+  assert.deepEqual(rows[1], ['Pérez, Ana', 'Dijo "hola"\ny se fue'])
+  const objs = csvToObjects(text)
+  assert.equal(objs[0]['Nombre'], 'Pérez, Ana')
+  assert.equal(objs[1]['Comentario'], 'simple')
+})
+
+test('csv: BOM y filas vacías', () => {
+  const text = '﻿A,B\n1,2\n,\n'
+  const objs = csvToObjects(text)
+  assert.equal(objs.length, 1)
+  assert.equal(objs[0]['A'], '1')
+})
+
+test('forms: hash estable e independiente del orden de columnas', () => {
+  const a = rowHash('f1', { Nombre: 'Ana', Hora: '8:00' })
+  const b = rowHash('f1', { Hora: '8:00', Nombre: 'Ana' })
+  const c = rowHash('f2', { Nombre: 'Ana', Hora: '8:00' })
+  assert.equal(a, b)
+  assert.notEqual(a, c)
+  assert.notEqual(a, rowHash('f1', { Nombre: 'Ana', Hora: '9:00' }))
+})
+
+test('forms: auto-detección de campos por encabezados del form', () => {
+  const g = guess({
+    'Marca temporal': '13/07/2026 9:12',
+    'Nombre completo': 'Lucía Fernández',
+    'Correo electrónico': 'lucia@example.com',
+    'Fecha de la clase': '16/07/2026',
+    'Hora': '8:00 a. m.',
+    '¿Qué clase quieres?': 'Kite curso',
+    'Fecha de nacimiento': '05/12/1994'
+  })
+  assert.equal(g.fullName, 'Lucía Fernández')
+  assert.equal(g.email, 'lucia@example.com')
+  assert.equal(g.date, '2026-07-16')       // fecha de la clase, no la marca temporal ni nacimiento
+  assert.equal(g.birthDate, '1994-12-05')
+  assert.equal(g.startMin, 480)
+  assert.equal(g.service, 'Kite curso')
+})
+
+test('forms: parseHourish con am/pm y formatos sueltos', () => {
+  assert.equal(parseHourish('8:30'), 510)
+  assert.equal(parseHourish('08:30'), 510)
+  assert.equal(parseHourish('8:30 p. m.'), 1230)
+  assert.equal(parseHourish('12:15 a. m.'), 15)
+  assert.equal(parseHourish('sin hora'), null)
+})

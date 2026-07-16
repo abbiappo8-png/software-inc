@@ -1,6 +1,7 @@
 import React, { useState } from 'react'
 import { api } from '../lib/api'
 import { Spinner } from '../components/ui'
+import { Logo } from '../components/Logo'
 import type { ImportReport } from '@shared/types/domain'
 
 export function FirstRun({ onDone }: { onDone: () => void }) {
@@ -54,6 +55,7 @@ export function FirstRun({ onDone }: { onDone: () => void }) {
   return (
     <div className="auth-wrap">
       <div className="auth-card" style={{ width: 460 }}>
+        <div className="logo-wrap"><Logo height={48} /></div>
         <h2>Bienvenido</h2>
         <p className="sub">
           Aún no hay datos. Importa tu Excel <strong>“software inc.xlsx”</strong> para cargar clientes, profesores,

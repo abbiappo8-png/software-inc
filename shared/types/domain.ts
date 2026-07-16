@@ -81,14 +81,18 @@ export interface Equipment {
 // Transacciones / reservas (hoja Club)
 // ---------------------------------------------------------------------------
 
+/** Tipo de transacción (etiqueta visible). 'loan' = préstamo/alquiler de equipo. */
+export type TxType = 'class' | 'loan' | 'service' | 'other'
+
 export interface Transaction {
   id: number
   txDate: ISODate
   startMin: number | null
-  endMin: number | null
+  endMin: number | null // NULL = sesión abierta (entrada sin salida)
   serviceRaw: string | null
   serviceId: number | null
   isClass: boolean
+  txType: TxType
   resolvedServiceId: number | null
   professorId: number | null
   clientId: number | null
@@ -97,11 +101,24 @@ export interface Transaction {
   priceSnapshot: COP | null
   professorPctSnapshot: number | null
   priceOverride: COP | null
+  checkInAt: string | null // timestamp ISO de la entrada
   comment: string | null
   // Campos calculados (columnas generadas en SQLite; solo lectura)
   priceEffective?: COP | null
   durationMin?: number | null
   professorSalary?: COP | null
+  isOpen?: boolean // derivado: end_min IS NULL
+}
+
+/** Cálculo en vivo del precio de una clase/servicio antes de guardarla. */
+export interface TxPreview {
+  resolvedServiceId: number | null
+  serviceName: string | null // nombre del servicio/nivel que se aplicará
+  isClass: boolean
+  courseDetected: string | null // si es clase de curso: el nivel detectado por horas del alumno
+  durationMin: number | null
+  priceEffective: COP | null // lo que se cargará a la cuenta del cliente
+  professorSalary: COP | null
 }
 
 // ---------------------------------------------------------------------------
@@ -254,6 +271,52 @@ export interface PaymentPlanInstallment {
   amount: COP
   comment: string | null
   balanceAfter?: COP // calculado
+}
+
+// ---------------------------------------------------------------------------
+// Google Forms (página "Reservas Web")
+// ---------------------------------------------------------------------------
+
+/** Un formulario de Google conectado (config guardada en settings). */
+export interface FormConfig {
+  key: string // identificador estable (slug)
+  name: string // nombre visible ("Reservas de clases")
+  csvUrl: string // URL del CSV publicado de la hoja de respuestas
+  formUrl: string // URL del formulario (para llenarlo embebido)
+}
+
+export type FormResponseStatus = 'new' | 'imported' | 'ignored'
+
+/** Una respuesta del formulario sincronizada a la BD local. */
+export interface FormResponse {
+  id: number
+  formKey: string
+  rowHash: string
+  submittedAt: string | null
+  values: Record<string, string> // encabezado -> valor
+  status: FormResponseStatus
+  importedPersonId: number | null
+  importedTxId: number | null
+}
+
+/** Campos pre-adivinados de una respuesta (por encabezados), editables antes de convertir. */
+export interface FormGuess {
+  fullName: string | null
+  email: string | null
+  passport: string | null
+  country: string | null
+  birthDate: string | null
+  date: string | null // fecha de la reserva (ISO)
+  startMin: number | null
+  service: string | null
+  comment: string | null
+}
+
+export interface FormSyncResult {
+  formKey: string
+  fetched: number // filas en la hoja
+  added: number // respuestas nuevas guardadas
+  error?: string
 }
 
 // ---------------------------------------------------------------------------

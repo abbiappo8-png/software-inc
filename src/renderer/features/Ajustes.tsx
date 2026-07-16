@@ -1,6 +1,7 @@
 import React, { useState } from 'react'
 import { api, useAsync } from '../lib/api'
 import { Field, Spinner } from '../components/ui'
+import type { FormConfig } from '@shared/types/domain'
 
 export function Ajustes() {
   return (
@@ -9,9 +10,59 @@ export function Ajustes() {
       <div className="grid" style={{ gridTemplateColumns: '1fr 1fr' }}>
         <CompanyPanel />
         <SmtpPanel />
+        <FormsPanel />
         <PinPanel />
         <BackupPanel />
       </div>
+    </div>
+  )
+}
+
+function FormsPanel() {
+  const { data } = useAsync(() => api.forms.list(), [])
+  const [forms, setForms] = useState<FormConfig[] | null>(null)
+  const [msg, setMsg] = useState('')
+  React.useEffect(() => { if (data) setForms(data) }, [data])
+  if (!forms) return <div className="panel panel-p"><Spinner /></div>
+
+  const set = (i: number, patch: Partial<FormConfig>) =>
+    setForms(forms.map((f, j) => (j === i ? { ...f, ...patch } : f)))
+  const add = () => setForms([...forms, { key: '', name: '', csvUrl: '', formUrl: '' }])
+  const remove = (i: number) => setForms(forms.filter((_, j) => j !== i))
+
+  async function save() {
+    if (!forms) return
+    await api.forms.saveConfig(forms)
+    setMsg('Guardado. Abre "Reservas Web" para sincronizar.')
+  }
+
+  return (
+    <div className="panel panel-p">
+      <h3 style={{ marginTop: 0 }}>Formularios de Google (Reservas Web)</h3>
+      <p className="muted" style={{ fontSize: 12, marginTop: 0 }}>
+        En Google Sheets (hoja de respuestas): <strong>Archivo → Compartir → Publicar en la web → CSV</strong> y pega aquí ese enlace.
+      </p>
+      {forms.map((f, i) => (
+        <div key={i} style={{ border: '1px solid var(--line)', borderRadius: 10, padding: 12, marginBottom: 10 }}>
+          <div className="row2">
+            <Field label="Nombre"><input value={f.name} onChange={(e) => set(i, { name: e.target.value })} placeholder="Reservas de clases" /></Field>
+            <div style={{ textAlign: 'right', paddingTop: 22 }}>
+              <button className="btn ghost sm" onClick={() => remove(i)}>✕ Quitar</button>
+            </div>
+          </div>
+          <Field label="Enlace del CSV publicado (hoja de respuestas)">
+            <input value={f.csvUrl} onChange={(e) => set(i, { csvUrl: e.target.value })} placeholder="https://docs.google.com/spreadsheets/d/e/…/pub?output=csv" />
+          </Field>
+          <Field label="Enlace del formulario (para llenarlo desde el programa)">
+            <input value={f.formUrl} onChange={(e) => set(i, { formUrl: e.target.value })} placeholder="https://docs.google.com/forms/d/e/…/viewform" />
+          </Field>
+        </div>
+      ))}
+      <div style={{ display: 'flex', gap: 8 }}>
+        <button className="btn" onClick={add}>+ Añadir formulario</button>
+        <button className="btn primary" onClick={save}>Guardar</button>
+      </div>
+      <div className="ok" style={{ marginTop: 8 }}>{msg}</div>
     </div>
   )
 }

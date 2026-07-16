@@ -33,32 +33,43 @@ const api: AppApi = {
     listServices: (onlyActive) => call('catalog:listServices', onlyActive),
     createService: (s) => call('catalog:createService', s),
     updateService: (id, s) => call('catalog:updateService', id, s),
-    listEquipment: (onlyActive) => call('catalog:listEquipment', onlyActive)
+    listEquipment: (onlyActive) => call('catalog:listEquipment', onlyActive),
+    createEquipment: (e) => call('catalog:createEquipment', e),
+    updateEquipment: (id, e) => call('catalog:updateEquipment', id, e)
   },
   transactions: {
     list: (filter) => call('tx:list', filter),
+    preview: (input) => call('tx:preview', input),
     create: (input) => call('tx:create', input),
+    update: (id, input) => call('tx:update', id, input),
+    checkout: (id, endMin) => call('tx:checkout', id, endMin),
     remove: (id) => call('tx:remove', id)
   },
   bar: {
     listProducts: () => call('bar:listProducts'),
+    createProduct: (input) => call('bar:createProduct', input),
+    updateProduct: (id, input) => call('bar:updateProduct', id, input),
+    restock: (input) => call('bar:restock', input),
     createSale: (input) => call('bar:createSale', input),
     listSales: (from, to) => call('bar:listSales', from, to)
   },
   expenses: {
     list: (from, to) => call('expenses:list', from, to),
     create: (input) => call('expenses:create', input),
+    update: (id, input) => call('expenses:update', id, input),
     remove: (id) => call('expenses:remove', id)
   },
   bills: {
     preview: (clientId, opts) => call('bills:preview', clientId, opts),
     save: (clientId, opts) => call('bills:save', clientId, opts),
+    markPaid: (billId) => call('bills:markPaid', billId),
     pdf: (billId) => call('bills:pdf', billId),
     email: (billId) => call('bills:email', billId)
   },
   settlements: {
     preview: (professorId, year, month) => call('settlements:preview', professorId, year, month),
     save: (professorId, year, month) => call('settlements:save', professorId, year, month),
+    markPaid: (professorId, year, month) => call('settlements:markPaid', professorId, year, month),
     pdf: (professorId, year, month) => call('settlements:pdf', professorId, year, month)
   },
   finance: {
@@ -82,6 +93,14 @@ const api: AppApi = {
     testSmtp: () => call('settings:testSmtp'),
     setBarDiscount: (pct) => call('settings:setBarDiscount', pct),
     getBarDiscount: () => call('settings:getBarDiscount')
+  },
+  forms: {
+    list: () => call('forms:list'),
+    saveConfig: (formsCfg) => call('forms:saveConfig', formsCfg),
+    sync: (formKey) => call('forms:sync', formKey),
+    responses: (formKey, status) => call('forms:responses', formKey, status),
+    convert: (responseId, kind, edited) => call('forms:convert', responseId, kind, edited),
+    ignore: (responseId) => call('forms:ignore', responseId)
   },
   backup: {
     create: () => call('backup:create'),

@@ -2,6 +2,7 @@
 import type { ClientBill, Person } from '@shared/types/domain'
 import type { SettlementPreview } from '../repositories/settlementsRepo'
 import type { CompanyConfig } from '../repositories/settingsRepo'
+import { LOGO_DATA_URI } from './logo'
 
 function money(n: number | null | undefined): string {
   if (n == null) return '—'
@@ -23,14 +24,19 @@ const BASE_CSS = `
   .totals .grand { font-size: 16px; font-weight: 700; border-top: 2px solid #333; }
   .badge { display:inline-block; padding:2px 8px; border-radius:6px; background:#eef; font-size:11px; }
   .footer { margin-top: 40px; color:#888; font-size: 11px; }
+  .brand { display:flex; align-items:center; gap:12px; }
+  .brand img { height:52px; width:auto; display:block; }
 `
 
 function header(company: CompanyConfig, docTitle: string, docMeta: string): string {
   return `
   <div class="row">
-    <div>
-      <h1>${escape(company.companyName)}</h1>
-      ${company.companyNit ? `<div class="muted">NIT ${escape(company.companyNit)}</div>` : ''}
+    <div class="brand">
+      <img src="${LOGO_DATA_URI}" alt="Kite Addict">
+      <div>
+        <h1>${escape(company.companyName)}</h1>
+        ${company.companyNit ? `<div class="muted">NIT ${escape(company.companyNit)}</div>` : ''}
+      </div>
     </div>
     <div style="text-align:right">
       <div class="badge">${escape(docTitle)}</div>

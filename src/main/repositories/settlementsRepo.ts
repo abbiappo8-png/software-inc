@@ -13,6 +13,8 @@ export interface SettlementPreview {
   /** Gastos de Outcome a nombre del profesor (informativos; NO se descuentan por defecto). */
   outcomeRows: { date: string; supply: string | null; amount: number; comment: string | null }[]
   result: ReturnType<typeof computeProfessorPayroll>
+  /** Estado de la liquidación ya guardada de este periodo (null si aún no se ha guardado). */
+  savedStatus: 'draft' | 'issued' | 'paid' | null
 }
 
 function barDiscountPct(): number {
@@ -55,7 +57,31 @@ export function previewSettlement(professorId: number, year: number, month: numb
     assignedExpenses: [] // no se descuentan por defecto (ver nota arriba)
   })
 
-  return { professorId, professorName: prof.full_name, year, month, salaryRows, outcomeRows, result }
+  const saved = db
+    .prepare('SELECT status FROM professor_settlements WHERE professor_id=? AND period_year=? AND period_month=?')
+    .get(professorId, year, month) as { status: 'draft' | 'issued' | 'paid' } | undefined
+
+  return { professorId, professorName: prof.full_name, year, month, salaryRows, outcomeRows, result, savedStatus: saved?.status ?? null }
+}
+
+function mapRow(row: any): ProfessorSettlement {
+  return {
+    id: row.id, professorId: row.professor_id, periodYear: row.period_year, periodMonth: row.period_month,
+    grossSalary: row.gross_salary, barDiscount: row.bar_discount, expensesAssigned: row.expenses_assigned,
+    netAmount: row.net_amount, status: row.status, pdfPath: row.pdf_path, emailedAt: row.emailed_at
+  }
+}
+
+/** Marca la liquidación del periodo como PAGADA (la guarda antes si aún no existe). */
+export function markPaid(professorId: number, year: number, month: number): ProfessorSettlement {
+  const db = getDb()
+  saveSettlement(professorId, year, month) // asegura que exista (upsert como 'issued')
+  db.prepare(
+    "UPDATE professor_settlements SET status='paid' WHERE professor_id=? AND period_year=? AND period_month=?"
+  ).run(professorId, year, month)
+  return mapRow(
+    db.prepare('SELECT * FROM professor_settlements WHERE professor_id=? AND period_year=? AND period_month=?').get(professorId, year, month)
+  )
 }
 
 export function saveSettlement(professorId: number, year: number, month: number): ProfessorSettlement {

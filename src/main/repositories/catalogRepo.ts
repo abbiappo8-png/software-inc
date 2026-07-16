@@ -84,3 +84,34 @@ export function listEquipment(onlyActive = false): Equipment[] {
   const sql = 'SELECT * FROM equipment' + (onlyActive ? ' WHERE active=1' : '') + ' ORDER BY name COLLATE NOCASE'
   return getDb().prepare(sql).all().map(mapEquipment)
 }
+
+export function getEquipment(id: number): Equipment | null {
+  const r = getDb().prepare('SELECT * FROM equipment WHERE id=?').get(id)
+  return r ? mapEquipment(r) : null
+}
+
+export function createEquipment(e: Omit<Equipment, 'id'>): Equipment {
+  const id = getDb()
+    .prepare(
+      `INSERT INTO equipment(name,name_normalized,category,count,price,active)
+       VALUES(@name,@norm,@cat,@count,@price,@active)`
+    )
+    .run({
+      name: e.name, norm: normalize(e.name), cat: e.category, count: e.count ?? 1,
+      price: e.price ?? null, active: e.active === false ? 0 : 1
+    }).lastInsertRowid as number
+  return getEquipment(id)!
+}
+
+export function updateEquipment(id: number, e: Omit<Equipment, 'id'>): Equipment {
+  getDb()
+    .prepare(
+      `UPDATE equipment SET name=@name, name_normalized=@norm, category=@cat,
+        count=@count, price=@price, active=@active WHERE id=@id`
+    )
+    .run({
+      id, name: e.name, norm: normalize(e.name), cat: e.category, count: e.count ?? 1,
+      price: e.price ?? null, active: e.active === false ? 0 : 1
+    })
+  return getEquipment(id)!
+}

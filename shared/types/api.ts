@@ -14,8 +14,18 @@ import type {
   MonthSummary,
   AgeBucket,
   PaymentPlan,
-  ImportReport
+  TxPreview,
+  ImportReport,
+  FormConfig,
+  FormResponse,
+  FormGuess,
+  FormSyncResult
 } from './domain'
+
+/** Datos para crear/editar un producto del bar (el stock y costo se calculan aparte). */
+export type BarProductInput = Pick<BarProduct, 'name' | 'boxPrice' | 'unitsPerBox' | 'sellPrice'> & {
+  active?: boolean
+}
 
 export interface AppStatus {
   hasPin: boolean
@@ -57,31 +67,48 @@ export interface AppApi {
     createService(s: Omit<ServiceCatalogItem, 'id'>): Promise<ServiceCatalogItem>
     updateService(id: number, s: Omit<ServiceCatalogItem, 'id'>): Promise<ServiceCatalogItem>
     listEquipment(onlyActive?: boolean): Promise<Equipment[]>
+    createEquipment(e: Omit<Equipment, 'id'>): Promise<Equipment>
+    updateEquipment(id: number, e: Omit<Equipment, 'id'>): Promise<Equipment>
   }
   transactions: {
     list(filter?: { clientId?: number; professorId?: number; from?: string; to?: string; limit?: number; offset?: number }): Promise<Transaction[]>
+    /** Calcula precio/salario/nivel sin guardar (para mostrarlos en vivo en el formulario). */
+    preview(input: any): Promise<TxPreview>
     create(input: any): Promise<Transaction>
+    /** Edita una transacción existente recalculando precio/salario/nivel. */
+    update(id: number, input: any): Promise<Transaction>
+    /** Cierra una sesión abierta fijando la hora de fin (por defecto, la hora actual). */
+    checkout(id: number, endMin?: number | null): Promise<Transaction>
     remove(id: number): Promise<void>
   }
   bar: {
     listProducts(): Promise<BarProduct[]>
+    createProduct(input: BarProductInput): Promise<BarProduct>
+    updateProduct(id: number, input: BarProductInput): Promise<BarProduct>
+    /** Registra una compra/entrada de stock (crea un gasto ligado al producto). */
+    restock(input: { productId: number; date: string; units: number; amount: number; comment?: string | null }): Promise<BarProduct>
     createSale(input: any): Promise<BarSale>
     listSales(from?: string, to?: string): Promise<BarSale[]>
   }
   expenses: {
     list(from?: string, to?: string): Promise<Expense[]>
     create(input: any): Promise<Expense>
+    update(id: number, input: any): Promise<Expense>
     remove(id: number): Promise<void>
   }
   bills: {
     preview(clientId: number, opts?: any): Promise<any>
     save(clientId: number, opts?: any): Promise<ClientBill>
+    /** Registra el pago de la factura: el saldo del cliente queda en 0. */
+    markPaid(billId: number): Promise<ClientBill>
     pdf(billId: number): Promise<string>
     email(billId: number): Promise<{ ok: boolean; error?: string }>
   }
   settlements: {
     preview(professorId: number, year: number, month: number): Promise<any>
     save(professorId: number, year: number, month: number): Promise<ProfessorSettlement>
+    /** Marca la liquidación del periodo como pagada (el saldo del profesor queda saldado). */
+    markPaid(professorId: number, year: number, month: number): Promise<ProfessorSettlement>
     pdf(professorId: number, year: number, month: number): Promise<string>
   }
   finance: {
@@ -105,6 +132,18 @@ export interface AppApi {
     testSmtp(): Promise<{ ok: boolean; error?: string }>
     setBarDiscount(pct: number): Promise<void>
     getBarDiscount(): Promise<number>
+  }
+  forms: {
+    /** Formularios de Google configurados (Ajustes). */
+    list(): Promise<FormConfig[]>
+    saveConfig(forms: FormConfig[]): Promise<void>
+    /** Baja el CSV publicado y guarda las respuestas nuevas (dedupe por hash). */
+    sync(formKey: string): Promise<FormSyncResult>
+    /** Respuestas guardadas de un formulario (con campos pre-adivinados). */
+    responses(formKey: string, status?: 'new' | 'imported' | 'ignored'): Promise<(FormResponse & { guess: FormGuess })[]>
+    /** Convierte una respuesta en cliente o en reserva (transacción abierta). */
+    convert(responseId: number, kind: 'client' | 'reservation', edited?: Partial<FormGuess>): Promise<FormResponse>
+    ignore(responseId: number): Promise<FormResponse>
   }
   backup: {
     create(): Promise<string>

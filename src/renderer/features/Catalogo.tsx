@@ -1,7 +1,7 @@
 import React, { useState } from 'react'
 import { api, useAsync, formatCOP } from '../lib/api'
 import { Modal, Field, Spinner, Empty } from '../components/ui'
-import type { ServiceCatalogItem } from '@shared/types/domain'
+import type { ServiceCatalogItem, Equipment } from '@shared/types/domain'
 
 const EMPTY: Omit<ServiceCatalogItem, 'id'> = {
   name: '',
@@ -15,9 +15,20 @@ const EMPTY: Omit<ServiceCatalogItem, 'id'> = {
   active: true
 }
 
+const EMPTY_EQ: Omit<Equipment, 'id'> = {
+  name: '',
+  category: 'kite',
+  count: 1,
+  price: null,
+  active: true
+}
+
+const EQ_CATEGORIES: Equipment['category'][] = ['kite', 'board', 'efoil', 'sup', 'wing', 'wake', 'other']
+
 export function Catalogo() {
   const [tab, setTab] = useState<'services' | 'equipment'>('services')
   const [editing, setEditing] = useState<ServiceCatalogItem | 'new' | null>(null)
+  const [editingEq, setEditingEq] = useState<Equipment | 'new' | null>(null)
   const services = useAsync(() => api.catalog.listServices(false), [])
   const equipment = useAsync(() => api.catalog.listEquipment(false), [])
 
@@ -25,9 +36,13 @@ export function Catalogo() {
     <div>
       <div className="header">
         <h1>Catálogo</h1>
-        {tab === 'services' && (
+        {tab === 'services' ? (
           <button className="btn primary" onClick={() => setEditing('new')}>
             + Nuevo servicio
+          </button>
+        ) : (
+          <button className="btn primary" onClick={() => setEditingEq('new')}>
+            + Nuevo equipo
           </button>
         )}
       </div>
@@ -86,6 +101,7 @@ export function Catalogo() {
                 <th>Categoría</th>
                 <th className="num">Cantidad</th>
                 <th className="num">Valor</th>
+                <th />
               </tr>
             </thead>
             <tbody>
@@ -95,12 +111,13 @@ export function Catalogo() {
                   <td>{e.category}</td>
                   <td className="num">{e.count}</td>
                   <td className="num">{formatCOP(e.price)}</td>
+                  <td><button className="btn ghost" onClick={() => setEditingEq(e)}>Editar</button></td>
                 </tr>
               ))}
             </tbody>
           </table>
         ) : (
-          <Empty>Sin equipos.</Empty>
+          <Empty>Sin equipos. Crea el primero con “+ Nuevo equipo”.</Empty>
         )}
       </div>
 
@@ -114,7 +131,60 @@ export function Catalogo() {
           }}
         />
       )}
+      {editingEq && (
+        <EquipmentForm
+          item={editingEq === 'new' ? null : editingEq}
+          onClose={() => setEditingEq(null)}
+          onSaved={() => {
+            setEditingEq(null)
+            equipment.reload()
+          }}
+        />
+      )}
     </div>
+  )
+}
+
+function EquipmentForm({ item, onClose, onSaved }: { item: Equipment | null; onClose: () => void; onSaved: () => void }) {
+  const [form, setForm] = useState<Omit<Equipment, 'id'>>(item ? { ...item } : EMPTY_EQ)
+  const [busy, setBusy] = useState(false)
+  const [err, setErr] = useState<string | null>(null)
+  const set = (p: Partial<Omit<Equipment, 'id'>>) => setForm((f) => ({ ...f, ...p }))
+
+  async function save() {
+    setErr(null)
+    if (!form.name.trim()) return setErr('Escribe el nombre del equipo.')
+    setBusy(true)
+    try {
+      const payload = { ...form, name: form.name.trim() }
+      if (item) await api.catalog.updateEquipment(item.id, payload)
+      else await api.catalog.createEquipment(payload)
+      onSaved()
+    } catch (e: any) {
+      setErr(e?.message ?? 'Error')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <Modal
+      title={item ? 'Editar equipo' : 'Nuevo equipo'}
+      onClose={onClose}
+      footer={<><button className="btn" onClick={onClose}>Cancelar</button><button className="btn primary" onClick={save} disabled={busy}>{busy ? <Spinner /> : 'Guardar'}</button></>}
+    >
+      <Field label="Nombre del equipo"><input value={form.name} onChange={(e) => set({ name: e.target.value })} placeholder="p. ej. Bandit 9 - 2026" /></Field>
+      <div className="row3">
+        <Field label="Categoría">
+          <select value={form.category} onChange={(e) => set({ category: e.target.value as Equipment['category'] })}>
+            {EQ_CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
+          </select>
+        </Field>
+        <Field label="Cantidad"><input type="number" min={0} value={form.count} onChange={(e) => set({ count: Number(e.target.value) })} /></Field>
+        <Field label="Valor (COP, opcional)"><input type="number" value={form.price ?? ''} onChange={(e) => set({ price: e.target.value ? Number(e.target.value) : null })} /></Field>
+      </div>
+      {err && <div className="err">{err}</div>}
+    </Modal>
   )
 }
 

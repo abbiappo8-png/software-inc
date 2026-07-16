@@ -29,9 +29,11 @@ export function previewClientBill(clientId: number, opts: BillOptions = {}): Bil
 
   const txs = db
     .prepare(
+      // Se excluyen las sesiones ABIERTAS (end_min NULL): aún no tienen precio y no
+      // deben entrar en la factura como líneas de $0. Se facturan tras el check-out.
       `SELECT t.id, t.tx_date, t.price_effective, s.name AS service
        FROM transactions t LEFT JOIN service_catalog s ON s.id=COALESCE(t.resolved_service_id, t.service_id)
-       WHERE t.client_id=? ORDER BY t.tx_date`
+       WHERE t.client_id=? AND t.end_min IS NOT NULL ORDER BY t.tx_date`
     )
     .all(clientId) as any[]
 
@@ -138,6 +140,20 @@ export function get(id: number): ClientBill | null {
       unitPrice: it.unit_price, lineTotal: it.line_total
     }))
   }
+}
+
+/**
+ * Registra el pago de la factura: marca la factura como pagada y abona al cliente el
+ * neto pendiente, de modo que su saldo (cargos − pagado) queda en 0.
+ */
+export function markPaid(id: number): ClientBill {
+  const db = getDb()
+  const bill = get(id)
+  if (!bill) throw new Error('Factura no encontrada')
+  if (bill.status === 'paid') return bill // idempotente: no duplica el abono
+  db.prepare("UPDATE client_bills SET status='paid' WHERE id=?").run(id)
+  db.prepare('UPDATE persons SET paid = IFNULL(paid,0) + ? WHERE id=?').run(bill.netToPay, bill.clientId)
+  return get(id)!
 }
 
 export function markEmailed(id: number): void {

@@ -20,7 +20,8 @@ export function dailyCashflow(from?: string, to?: string): { rows: DailyCashflow
   const days: Record<string, DayAggregate> = {}
   const touch = (d: string) => (days[d] ??= { date: d, inClients: 0, inBar: 0, out: 0 })
 
-  for (const r of db.prepare("SELECT tx_date d, SUM(price_effective) v FROM transactions WHERE price_effective IS NOT NULL GROUP BY tx_date").all() as any[])
+  // end_min IS NOT NULL: las sesiones abiertas aún no son ingreso (se cobran al salir).
+  for (const r of db.prepare("SELECT tx_date d, SUM(price_effective) v FROM transactions WHERE price_effective IS NOT NULL AND end_min IS NOT NULL GROUP BY tx_date").all() as any[])
     if (r.d) touch(r.d).inClients += r.v
   for (const r of db.prepare('SELECT sale_date d, SUM(total) v FROM bar_sales GROUP BY sale_date').all() as any[])
     if (r.d) touch(r.d).inBar += r.v
@@ -42,7 +43,7 @@ export function monthSummary(year: number, month: number): MonthSummary {
 
   // Ingreso real de clientes = valor de los servicios prestados en el mes (transacciones).
   const incomeClients =
-    (db.prepare("SELECT IFNULL(SUM(price_effective),0) v FROM transactions WHERE substr(tx_date,1,7)=?").get(prefix) as { v: number }).v +
+    (db.prepare("SELECT IFNULL(SUM(price_effective),0) v FROM transactions WHERE substr(tx_date,1,7)=? AND end_min IS NOT NULL").get(prefix) as { v: number }).v +
     (db.prepare("SELECT IFNULL(SUM(total),0) v FROM bar_sales WHERE substr(sale_date,1,7)=?").get(prefix) as { v: number }).v
 
   const expensesNonProfessor =
@@ -59,7 +60,7 @@ export function monthSummary(year: number, month: number): MonthSummary {
       .prepare(
         `SELECT t.professor_id id, pr.full_name name, IFNULL(SUM(t.professor_salary),0) amount
          FROM transactions t JOIN persons pr ON pr.id=t.professor_id
-         WHERE substr(t.tx_date,1,7)=? AND t.professor_id IS NOT NULL
+         WHERE substr(t.tx_date,1,7)=? AND t.professor_id IS NOT NULL AND t.end_min IS NOT NULL
          GROUP BY t.professor_id ORDER BY amount DESC`
       )
       .all(prefix) as any[]
@@ -96,7 +97,7 @@ export function yearBalance(): { year: number; in: number; out: number }[] {
     if (!map.has(y)) map.set(y, { in: 0, out: 0 })
     return map.get(y)!
   }
-  for (const r of db.prepare("SELECT substr(tx_date,1,4) y, SUM(price_effective) v FROM transactions WHERE price_effective IS NOT NULL GROUP BY y").all() as any[])
+  for (const r of db.prepare("SELECT substr(tx_date,1,4) y, SUM(price_effective) v FROM transactions WHERE price_effective IS NOT NULL AND end_min IS NOT NULL GROUP BY y").all() as any[])
     if (r.y) touch(parseInt(r.y, 10)).in += r.v
   for (const r of db.prepare("SELECT substr(sale_date,1,4) y, SUM(total) v FROM bar_sales GROUP BY y").all() as any[])
     if (r.y) touch(parseInt(r.y, 10)).in += r.v
@@ -113,7 +114,7 @@ export function dashboardTotals() {
     clients: one('SELECT COUNT(*) v FROM persons WHERE is_client=1'),
     professors: one('SELECT COUNT(*) v FROM persons WHERE is_professor=1'),
     transactions: one('SELECT COUNT(*) v FROM transactions'),
-    incomeAll: one('SELECT IFNULL(SUM(price_effective),0) v FROM transactions'),
+    incomeAll: one('SELECT IFNULL(SUM(price_effective),0) v FROM transactions WHERE end_min IS NOT NULL'),
     expensesAll: one('SELECT IFNULL(SUM(amount_out),0) v FROM expenses'),
     barSales: one('SELECT COUNT(*) v FROM bar_sales')
   }

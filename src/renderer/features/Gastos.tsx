@@ -1,91 +1,90 @@
-import React, { useState } from 'react'
-import { api, useAsync, formatCOP, todayISO } from '../lib/api'
-import { Modal, Field, Spinner, Empty } from '../components/ui'
+import React from 'react'
+import { api, useAsync, todayISO } from '../lib/api'
+import { Spinner } from '../components/ui'
+import { EditableTable, GridColumn } from '../components/EditableTable'
+
+const numOrNull = (v: any) => (v === '' || v == null ? null : Number(v))
 
 export function Gastos() {
-  const [creating, setCreating] = useState(false)
   const { data, loading, reload } = useAsync(() => api.expenses.list(), [])
   const persons = useAsync(() => api.persons.list({ limit: 2000 }), [])
+  const staff = (persons.data ?? []).filter((p) => p.isProfessor || p.isSupplier)
+  const areaOpts = [
+    { value: '', label: '— general' },
+    ...staff.map((p) => ({ value: String(p.id), label: p.nickname || p.fullName }))
+  ]
+  const nameOf = (id: number | null) => persons.data?.find((p) => p.id === id)?.fullName ?? null
 
-  return (
-    <div>
-      <div className="header">
-        <h1>Gastos</h1>
-        <button className="btn primary" onClick={() => setCreating(true)}>+ Nuevo gasto</button>
-      </div>
-      <div className="panel">
-        {loading ? <div style={{ padding: 24 }}><Spinner /></div> : !data?.length ? <Empty>Sin gastos.</Empty> : (
-          <table className="data">
-            <thead><tr><th>Fecha</th><th>Insumo</th><th>Área/Nombre</th><th>Proveedor</th><th>Comentario</th><th className="num">Monto</th></tr></thead>
-            <tbody>
-              {data.map((e) => (
-                <tr key={e.id}>
-                  <td>{e.expenseDate}</td>
-                  <td>{e.supplyName ?? '—'}</td>
-                  <td>{e.areaName ?? '—'}</td>
-                  <td>{e.supplierRaw ?? '—'}</td>
-                  <td className="muted">{e.comment ?? ''}</td>
-                  <td className="num">{formatCOP(e.amountOut)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
-      </div>
-
-      {creating && (
-        <ExpenseForm
-          persons={persons.data ?? []}
-          onClose={() => setCreating(false)}
-          onSaved={() => { setCreating(false); reload() }}
-        />
-      )}
-    </div>
-  )
-}
-
-function ExpenseForm({ persons, onClose, onSaved }: any) {
-  const [form, setForm] = useState({ expenseDate: todayISO(), supplyName: '', count: 1, areaPersonId: '', amountOut: 0, comment: '' })
-  const [busy, setBusy] = useState(false)
-  const set = (p: any) => setForm((f) => ({ ...f, ...p }))
-  const staff = persons.filter((p: any) => p.isProfessor || p.isSupplier)
-
-  async function save() {
-    setBusy(true)
-    try {
-      await api.expenses.create({
-        expenseDate: form.expenseDate,
-        supplyName: form.supplyName || null,
-        count: Number(form.count) || 1,
-        areaName: null,
-        areaPersonId: form.areaPersonId ? Number(form.areaPersonId) : null,
-        supplierId: null,
-        amountOut: Number(form.amountOut),
-        comment: form.comment || null
-      })
-      onSaved()
-    } finally {
-      setBusy(false)
+  function toInput(r: any) {
+    const areaPersonId = numOrNull(r.areaPersonId)
+    return {
+      expenseDate: r.expenseDate,
+      supplyName: r.supplyName ?? null,
+      count: Number(r.count ?? 1) || 1,
+      areaName: areaPersonId != null ? nameOf(areaPersonId) : r.areaName ?? null,
+      areaPersonId,
+      // Conserva el proveedor ya vinculado (p.ej. del import del Excel).
+      supplierId: numOrNull(r.supplierId),
+      amountOut: Number(r.amountOut ?? 0) || 0,
+      comment: r.comment ?? null
     }
   }
 
+  async function onCreate(draft: any) {
+    if (!draft.expenseDate || !(Number(draft.amountOut) > 0)) return
+    try {
+      await api.expenses.create(toInput(draft))
+      reload()
+    } catch (e: any) {
+      alert(e?.message ?? 'Error')
+    }
+  }
+  async function onUpdate(id: number, patch: any) {
+    const row = data?.find((x) => x.id === id)
+    if (!row) return
+    const merged: any = { ...row, ...patch }
+    // Si el usuario cambió "Asignado a", el nombre de área anterior deja de aplicar
+    // (nameOf lo rellena si asignó a alguien; si eligió "general", queda null).
+    if ('areaPersonId' in patch) merged.areaName = null
+    try {
+      await api.expenses.update(id, toInput(merged))
+      reload()
+    } catch (e: any) {
+      alert(e?.message ?? 'Error'); reload()
+    }
+  }
+  async function onDelete(id: number) {
+    if (!confirm('¿Eliminar este gasto?')) return
+    await api.expenses.remove(id)
+    reload()
+  }
+
+  const columns: GridColumn[] = [
+    { key: 'expenseDate', label: 'Fecha', type: 'date', width: 150 },
+    { key: 'supplyName', label: 'Insumo / concepto', type: 'text', width: 220 },
+    { key: 'count', label: 'Cant.', type: 'number', width: 80, align: 'right' },
+    { key: 'areaPersonId', label: 'Asignado a', type: 'select', options: areaOpts, width: 150, get: (r) => (r.areaPersonId == null ? '' : String(r.areaPersonId)) },
+    { key: 'amountOut', label: 'Monto', type: 'money', width: 130, align: 'right' },
+    { key: 'comment', label: 'Comentario', type: 'text', width: 220 }
+  ]
+
   return (
-    <Modal title="Nuevo gasto" onClose={onClose} footer={<><button className="btn" onClick={onClose}>Cancelar</button><button className="btn primary" onClick={save} disabled={busy}>{busy ? <Spinner /> : 'Guardar'}</button></>}>
-      <div className="row2">
-        <Field label="Fecha"><input type="date" value={form.expenseDate} onChange={(e) => set({ expenseDate: e.target.value })} /></Field>
-        <Field label="Monto (COP)"><input type="number" value={form.amountOut} onChange={(e) => set({ amountOut: Number(e.target.value) })} /></Field>
-      </div>
-      <div className="row2">
-        <Field label="Insumo"><input value={form.supplyName} onChange={(e) => set({ supplyName: e.target.value })} /></Field>
-        <Field label="Cantidad"><input type="number" value={form.count} onChange={(e) => set({ count: Number(e.target.value) })} /></Field>
-      </div>
-      <Field label="Asignado a (profesor/área)">
-        <select value={form.areaPersonId} onChange={(e) => set({ areaPersonId: e.target.value })}>
-          <option value="">— (gasto general de la escuela)</option>
-          {staff.map((p: any) => <option key={p.id} value={p.id}>{p.nickname || p.fullName}</option>)}
-        </select>
-      </Field>
-      <Field label="Comentario"><input value={form.comment} onChange={(e) => set({ comment: e.target.value })} /></Field>
-    </Modal>
+    <div>
+      <div className="header"><h1>Gastos</h1></div>
+      {loading ? (
+        <div className="panel"><div style={{ padding: 24 }}><Spinner /></div></div>
+      ) : (
+        <EditableTable
+          columns={columns}
+          rows={data ?? []}
+          onCreate={onCreate}
+          onUpdate={onUpdate}
+          onDelete={onDelete}
+          canCreate={(d) => !!d.expenseDate && Number(d.amountOut) > 0}
+          newRowDefaults={{ expenseDate: todayISO(), count: 1 }}
+          addLabel="Agregar"
+        />
+      )}
+    </div>
   )
 }

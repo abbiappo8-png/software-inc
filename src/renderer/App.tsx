@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react'
 import { NavLink, Route, Routes, Navigate } from 'react-router-dom'
 import { api, IS_DEMO } from './lib/api'
 import { Spinner } from './components/ui'
+import { Logo } from './components/Logo'
 import { SetPinScreen, PinGate } from './features/Auth'
 import { FirstRun } from './features/FirstRun'
 import { Dashboard } from './features/Dashboard'
@@ -14,6 +15,7 @@ import { Facturacion } from './features/Facturacion'
 import { Liquidaciones } from './features/Liquidaciones'
 import { Finanzas } from './features/Finanzas'
 import { PlanesPago } from './features/PlanesPago'
+import { ReservasWeb } from './features/ReservasWeb'
 import { Ajustes } from './features/Ajustes'
 import type { AppStatus } from '@shared/types/api'
 
@@ -23,9 +25,10 @@ const NAV = [
   { to: '/', label: 'Panel', end: true },
   { to: '/personas', label: 'Personas' },
   { to: '/catalogo', label: 'Catálogo' },
-  { to: '/transacciones', label: 'Transacciones' },
+  { to: '/transacciones', label: 'Club' },
   { to: '/bar', label: 'Bar' },
   { to: '/gastos', label: 'Gastos' },
+  { to: '/reservas-web', label: 'Reservas Web' },
   { to: '/facturacion', label: 'Facturación' },
   { to: '/liquidaciones', label: 'Liquidaciones' },
   { to: '/finanzas', label: 'Finanzas' },
@@ -65,12 +68,8 @@ export default function App() {
   return (
     <div className="app">
       <nav className="sidebar">
-        <div className="brand">🌊 Software Inc</div>
-        {IS_DEMO && (
-          <div style={{ background: '#b45309', color: '#fff', fontSize: 11, fontWeight: 700, textAlign: 'center', padding: '5px 8px', borderRadius: 6, margin: '0 4px 8px' }}>
-            MODO DEMO · datos de ejemplo
-          </div>
-        )}
+        <div className="brand"><Logo height={34} onDark /></div>
+        {IS_DEMO && <div className="demo-banner">MODO DEMO · datos de ejemplo</div>}
         {NAV.map((n) => (
           <NavLink key={n.to} to={n.to} end={n.end} className={({ isActive }) => (isActive ? 'active' : '')}>
             {n.label}
@@ -89,6 +88,7 @@ export default function App() {
           <Route path="/transacciones" element={<Transacciones />} />
           <Route path="/bar" element={<Bar />} />
           <Route path="/gastos" element={<Gastos />} />
+          <Route path="/reservas-web" element={<ReservasWeb />} />
           <Route path="/facturacion" element={<Facturacion />} />
           <Route path="/liquidaciones" element={<Liquidaciones />} />
           <Route path="/finanzas" element={<Finanzas />} />
