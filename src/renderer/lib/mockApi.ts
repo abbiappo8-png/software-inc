@@ -126,6 +126,16 @@ export const mockApi: AppApi = {
       return persons[i]
     },
     remove: async (id) => {
+      // Paridad con escritorio/web: con historial no se borra, se marca inactiva.
+      const refs =
+        transactions.filter((t) => t.clientId === id || t.professorId === id).length +
+        barSales.filter((s) => s.clientId === id).length
+      if (refs > 0) {
+        throw new Error(
+          `No se puede eliminar: tiene ${refs} registro(s) asociados (clases, bar…). ` +
+            'Desmarca "Activo" para ocultarla sin perder el historial.'
+        )
+      }
       const i = persons.findIndex((p) => p.id === id)
       if (i >= 0) persons.splice(i, 1)
     },

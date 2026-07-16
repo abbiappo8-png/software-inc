@@ -1062,6 +1062,26 @@ export const supabaseApi: AppApi = {
       return mapPerson(r)
     },
     remove: async (id) => {
+      // Nunca borrar a alguien con historial: las FK de Postgres lo impedirían con un
+      // error críptico; mejor un mensaje claro (paridad con el escritorio).
+      const counts = await Promise.all([
+        sb.count('transactions', [sb.eq('client_id', id)]),
+        sb.count('transactions', [sb.eq('professor_id', id)]),
+        sb.count('bar_sales', [sb.eq('client_id', id)]),
+        sb.count('expenses', [sb.eq('supplier_id', id)]),
+        sb.count('expenses', [sb.eq('area_person_id', id)]),
+        sb.count('client_bills', [sb.eq('client_id', id)]),
+        sb.count('professor_settlements', [sb.eq('professor_id', id)]),
+        sb.count('payment_plans', [sb.eq('person_id', id)]),
+        sb.count('form_responses', [sb.eq('imported_person_id', id)])
+      ])
+      const total = counts.reduce((a, b) => a + b, 0)
+      if (total > 0) {
+        throw new Error(
+          `No se puede eliminar: tiene ${total} registro(s) asociados (clases, bar, gastos, facturas…). ` +
+            'Desmarca "Activo" para ocultarla sin perder el historial.'
+        )
+      }
       await sb.remove('persons', [sb.eq('id', id)])
     },
     setPhoto: async (id, dataBase64) => {

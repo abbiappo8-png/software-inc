@@ -152,5 +152,26 @@ export function update(id: number, input: PersonInput): Person {
 }
 
 export function remove(id: number): void {
+  const db = getDb()
+  // Nunca borrar a alguien con historial: dejaría clases/ventas/facturas huérfanas.
+  // En su lugar se marca inactiva (still_here=0) desde la cuadrícula.
+  const refs = db
+    .prepare(
+      `SELECT
+        (SELECT COUNT(*) FROM transactions WHERE client_id=@id OR professor_id=@id) +
+        (SELECT COUNT(*) FROM bar_sales WHERE client_id=@id) +
+        (SELECT COUNT(*) FROM expenses WHERE supplier_id=@id OR area_person_id=@id) +
+        (SELECT COUNT(*) FROM client_bills WHERE client_id=@id) +
+        (SELECT COUNT(*) FROM professor_settlements WHERE professor_id=@id) +
+        (SELECT COUNT(*) FROM payment_plans WHERE person_id=@id) +
+        (SELECT COUNT(*) FROM form_responses WHERE imported_person_id=@id) AS n`
+    )
+    .get({ id }) as { n: number }
+  if (refs.n > 0) {
+    throw new Error(
+      `No se puede eliminar: tiene ${refs.n} registro(s) asociados (clases, bar, gastos, facturas…). ` +
+        'Desmarca "Activo" para ocultarla sin perder el historial.'
+    )
+  }
   getDb().prepare('DELETE FROM persons WHERE id=?').run(id)
 }

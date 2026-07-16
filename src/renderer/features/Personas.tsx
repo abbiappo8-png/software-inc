@@ -131,7 +131,11 @@ export function Personas() {
   }
   async function onDelete(id: number) {
     if (!confirm('¿Eliminar esta persona?')) return
-    await api.persons.remove(id)
+    try {
+      await api.persons.remove(id)
+    } catch (e: any) {
+      alert(e?.message ?? 'No se pudo eliminar.')
+    }
     reload()
   }
 

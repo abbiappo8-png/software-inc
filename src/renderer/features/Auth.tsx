@@ -33,11 +33,11 @@ export function SetPinScreen({ onDone }: { onDone: () => void }) {
         <p className="sub">Protege la información de tus clientes. Podrás cambiarlo luego en Ajustes.</p>
         <div className="field">
           <label>PIN nuevo</label>
-          <input className="pin-input" type="password" inputMode="numeric" value={pin} onChange={(e) => setPin(e.target.value)} autoFocus />
+          <input className="pin-input" type="password" value={pin} onChange={(e) => setPin(e.target.value)} autoFocus />
         </div>
         <div className="field">
           <label>Confirmar PIN</label>
-          <input className="pin-input" type="password" inputMode="numeric" value={confirm} onChange={(e) => setConfirm(e.target.value)} />
+          <input className="pin-input" type="password" value={confirm} onChange={(e) => setConfirm(e.target.value)} />
         </div>
         {err && <div className="err">{err}</div>}
         <button className="btn primary" style={{ width: '100%', justifyContent: 'center', marginTop: 8 }} disabled={busy}>
@@ -76,7 +76,7 @@ export function PinGate({ onUnlock }: { onUnlock: () => void }) {
         <div className="logo-wrap"><Logo height={48} /></div>
         <p className="sub">Ingresa tu PIN para continuar.</p>
         <div className="field">
-          <input className="pin-input" type="password" inputMode="numeric" value={pin} onChange={(e) => setPin(e.target.value)} autoFocus />
+          <input className="pin-input" type="password" value={pin} onChange={(e) => setPin(e.target.value)} autoFocus />
         </div>
         {err && <div className="err">{err}</div>}
         <button className="btn primary" style={{ width: '100%', justifyContent: 'center', marginTop: 8 }} disabled={busy}>
