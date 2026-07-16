@@ -13,7 +13,8 @@ function mapRow(r: any): Expense {
     supplierId: r.supplier_id,
     supplierRaw: r.supplier_raw,
     amountOut: r.amount_out,
-    comment: r.comment
+    comment: r.comment,
+    importBatchId: r.import_batch_id ?? null
   }
 }
 

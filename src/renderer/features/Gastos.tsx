@@ -83,8 +83,13 @@ export function Gastos() {
           canCreate={(d) => !!d.expenseDate && Number(d.amountOut) > 0}
           newRowDefaults={{ expenseDate: todayISO(), count: 1 }}
           addLabel="Agregar"
+          rowClassName={(r) => (r.importBatchId != null ? 'row-imported' : undefined)}
         />
       )}
+      <p className="muted" style={{ marginTop: 10, fontSize: 12 }}>
+        Los gastos <span style={{ textDecoration: 'line-through' }}>tachados</span> vienen del Excel
+        (pasados al nuevo sistema); los nuevos se registran sin tachar.
+      </p>
     </div>
   )
 }

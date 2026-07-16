@@ -165,6 +165,8 @@ export interface Expense {
   supplierRaw: string | null
   amountOut: COP
   comment: string | null
+  /** Batch de importación: si no es null, el gasto vino del Excel (sistema viejo). */
+  importBatchId?: number | null
 }
 
 // ---------------------------------------------------------------------------

@@ -77,7 +77,6 @@ export default function App() {
   return (
     <div className="app">
       <nav className="sidebar">
-        <div className="brand"><Logo height={34} onDark /></div>
         {IS_DEMO && <div className="demo-banner">MODO DEMO · datos de ejemplo</div>}
         {NAV.map((n) => (
           <NavLink key={n.to} to={n.to} end={n.end} className={({ isActive }) => (isActive ? 'active' : '')}>
@@ -93,6 +92,8 @@ export default function App() {
         </div>
       </nav>
       <main className="main">
+        {/* Logo centrado arriba del contenido (el sidebar sigue negro) */}
+        <div className="main-brand"><Logo height={46} /></div>
         <Routes>
           <Route path="/" element={<Dashboard />} />
           <Route path="/personas" element={<Personas />} />
