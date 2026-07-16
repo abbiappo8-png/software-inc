@@ -1,11 +1,13 @@
 import React, { useState } from 'react'
 import { api, useAsync } from '../lib/api'
-import { Spinner } from '../components/ui'
+import { Field, Modal, Spinner } from '../components/ui'
 import { PersonAvatar } from '../components/PersonAvatar'
 import { EditableTable, GridColumn } from '../components/EditableTable'
 import { ClientProfile } from './ClientProfile'
 
 type Role = 'client' | 'professor' | 'supplier'
+
+const ROLE_LABEL: Record<Role, string> = { client: 'cliente', professor: 'profesor', supplier: 'proveedor' }
 
 function toPersonInput(r: any) {
   return {
@@ -30,25 +32,92 @@ function toPersonInput(r: any) {
   }
 }
 
+/** Vista de alta de perfil: se abre desde el botón "Agregar" (arriba a la derecha). */
+function NewPersonModal({ role, onClose, onCreated }: { role: Role; onClose: () => void; onCreated: (id: number) => void }) {
+  const [form, setForm] = useState<any>({ fullName: '', stillHere: true, discountPct: 0 })
+  const [busy, setBusy] = useState(false)
+  const [err, setErr] = useState<string | null>(null)
+  const set = (k: string) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
+    setForm((f: any) => ({ ...f, [k]: e.target.value }))
+
+  async function save() {
+    if (!form.fullName?.trim()) {
+      setErr('El nombre es obligatorio.')
+      return
+    }
+    setBusy(true)
+    setErr(null)
+    try {
+      const input: any = toPersonInput({
+        ...form,
+        [role === 'client' ? 'isClient' : role === 'professor' ? 'isProfessor' : 'isSupplier']: true
+      })
+      const created = await api.persons.create(input)
+      onCreated(created.id)
+    } catch (e: any) {
+      setErr(e?.message ?? 'Error al crear')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <Modal
+      title={`Nuevo ${ROLE_LABEL[role]}`}
+      onClose={onClose}
+      footer={
+        <>
+          <button className="btn" onClick={onClose} disabled={busy}>Cancelar</button>
+          <button className="btn primary" onClick={save} disabled={busy || !form.fullName?.trim()}>
+            {busy ? 'Guardando…' : 'Guardar y abrir perfil'}
+          </button>
+        </>
+      }
+    >
+      <div className="row2">
+        <Field label="Nombre completo *"><input autoFocus value={form.fullName} onChange={set('fullName')} placeholder="Nombre y apellido" /></Field>
+        <Field label="Apodo"><input value={form.nickname ?? ''} onChange={set('nickname')} /></Field>
+      </div>
+      <div className="row2">
+        <Field label="Pasaporte / documento"><input value={form.passport ?? ''} onChange={set('passport')} /></Field>
+        <Field label="Email"><input type="email" value={form.email ?? ''} onChange={set('email')} /></Field>
+      </div>
+      <div className="row2">
+        <Field label="País"><input value={form.country ?? ''} onChange={set('country')} /></Field>
+        <Field label="Fecha de nacimiento"><input type="date" value={form.birthDate ?? ''} onChange={set('birthDate')} /></Field>
+      </div>
+      {role === 'client' && (
+        <div className="row3">
+          <Field label="Check-in"><input type="date" value={form.checkIn ?? ''} onChange={set('checkIn')} /></Field>
+          <Field label="Check-out"><input type="date" value={form.checkOut ?? ''} onChange={set('checkOut')} /></Field>
+          <Field label="Descuento %"><input type="number" min={0} max={100} value={form.discountPct ?? 0} onChange={set('discountPct')} /></Field>
+        </div>
+      )}
+      <Field label="Comentario"><textarea rows={2} value={form.comment ?? ''} onChange={set('comment')} /></Field>
+      <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, cursor: 'pointer' }}>
+        <input
+          type="checkbox"
+          style={{ width: 'auto' }}
+          checked={form.stillHere !== false}
+          onChange={(e) => setForm((f: any) => ({ ...f, stillHere: e.target.checked }))}
+        />
+        Activo (está actualmente en la escuela)
+      </label>
+      <p className="muted" style={{ fontSize: 12, marginTop: 10 }}>
+        Al guardar se abre el perfil, donde puedes tomar la foto con la cámara.
+      </p>
+      {err && <div className="err">{err}</div>}
+    </Modal>
+  )
+}
+
 export function Personas() {
   const [role, setRole] = useState<Role>('client')
   const [search, setSearch] = useState('')
   const [profileId, setProfileId] = useState<number | null>(null)
+  const [adding, setAdding] = useState(false)
   const { data, loading, reload } = useAsync(() => api.persons.list({ role, search, limit: 1000 }), [role, search])
 
-  async function onCreate(draft: any) {
-    if (!draft.fullName?.trim()) return
-    try {
-      const input: any = toPersonInput({
-        ...draft,
-        [role === 'client' ? 'isClient' : role === 'professor' ? 'isProfessor' : 'isSupplier']: true
-      })
-      await api.persons.create(input)
-      reload()
-    } catch (e: any) {
-      alert(e?.message ?? 'Error al crear')
-    }
-  }
   async function onUpdate(id: number, patch: any) {
     const row = data?.find((p) => p.id === id)
     if (!row) return
@@ -89,6 +158,9 @@ export function Personas() {
     <div>
       <div className="header">
         <h1>Personas</h1>
+        <button className="btn primary" onClick={() => setAdding(true)}>
+          + Agregar {ROLE_LABEL[role]}
+        </button>
       </div>
       <div className="toolbar">
         <div style={{ display: 'inline-flex', gap: 6 }}>
@@ -105,17 +177,23 @@ export function Personas() {
         <EditableTable
           columns={columns}
           rows={data ?? []}
-          onCreate={onCreate}
           onUpdate={onUpdate}
           onDelete={onDelete}
-          canCreate={(d) => !!d.fullName?.trim()}
-          newRowDefaults={{ isClient: role === 'client', isProfessor: role === 'professor', isSupplier: role === 'supplier', stillHere: true }}
-          addLabel="Agregar"
         />
       )}
       <p className="muted" style={{ marginTop: 10, fontSize: 12 }}>
         Haz clic en la foto de una persona para ver su perfil e historial. Edita cualquier celda directamente.
+        Para añadir usa el botón «+ Agregar» de arriba a la derecha.
       </p>
+
+      {/* Alta de perfil: al guardar se abre el perfil recién creado (para tomar la foto) */}
+      {adding && (
+        <NewPersonModal
+          role={role}
+          onClose={() => setAdding(false)}
+          onCreated={(id) => { setAdding(false); reload(); setProfileId(id) }}
+        />
+      )}
 
       {/* Al cerrar el perfil se recarga la lista: una foto recién tomada aparece en la cuadrícula */}
       {profileId != null && <ClientProfile personId={profileId} onClose={() => { setProfileId(null); reload() }} />}
