@@ -9,6 +9,7 @@
  *   ├─ media\     persons\<id>\profile.jpg + profile_thumb.jpg
  *   ├─ exports\   PDF / Excel generados
  *   ├─ backups\   copias de la BD
+ *   ├─ files\     biblioteca de la pestaña "Archivos" (Excels del negocio)
  *   └─ logs\
  */
 import { app } from 'electron'
@@ -24,6 +25,8 @@ export interface AppPaths {
   exportsDir: string
   backupsDir: string
   logsDir: string
+  /** Biblioteca de archivos de la pestaña "Archivos" (Excels del negocio, etc.) */
+  filesDir: string
 }
 
 let cached: AppPaths | null = null
@@ -39,9 +42,10 @@ export function getPaths(): AppPaths {
     personsMediaDir: join(root, 'media', 'persons'),
     exportsDir: join(root, 'exports'),
     backupsDir: join(root, 'backups'),
-    logsDir: join(root, 'logs')
+    logsDir: join(root, 'logs'),
+    filesDir: join(root, 'files')
   }
-  for (const dir of [p.dataDir, p.mediaDir, p.personsMediaDir, p.exportsDir, p.backupsDir, p.logsDir]) {
+  for (const dir of [p.dataDir, p.mediaDir, p.personsMediaDir, p.exportsDir, p.backupsDir, p.logsDir, p.filesDir]) {
     mkdirSync(dir, { recursive: true })
   }
   cached = p

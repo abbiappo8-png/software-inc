@@ -8,8 +8,8 @@
  */
 import { getDb } from '../db/connection'
 import type { Transaction, TxPreview, TxType } from '@shared/types/domain'
-import { autoPrice, professorSalary as calcProfessorSalary } from '../services/pricing'
-import { detectCourseForClient } from '../services/courses'
+import { autoPrice, professorSalary as calcProfessorSalary } from '@shared/services/pricing'
+import { detectCourseForClient } from '@shared/services/courses'
 import * as catalog from './catalogRepo'
 
 function mapRow(r: any): Transaction {

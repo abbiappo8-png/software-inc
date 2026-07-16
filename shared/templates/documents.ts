@@ -1,8 +1,21 @@
 /** Plantillas HTML (en español) para factura de cliente y liquidación de profesor. */
-import type { ClientBill, Person } from '@shared/types/domain'
-import type { SettlementPreview } from '../repositories/settlementsRepo'
-import type { CompanyConfig } from '../repositories/settingsRepo'
+import type { ClientBill, Person, CompanyConfig } from '@shared/types/domain'
+import type { ProfessorPayrollResult } from '../services/payroll'
 import { LOGO_DATA_URI } from './logo'
+
+/** Vista previa de la liquidación mensual de un profesor (calculada por el repo). */
+export interface SettlementPreview {
+  professorId: number
+  professorName: string
+  year: number
+  month: number
+  salaryRows: { date: string; service: string | null; client: string | null; salary: number }[]
+  /** Gastos de Outcome a nombre del profesor (informativos; NO se descuentan por defecto). */
+  outcomeRows: { date: string; supply: string | null; amount: number; comment: string | null }[]
+  result: ProfessorPayrollResult
+  /** Estado de la liquidación ya guardada de este periodo (null si aún no se ha guardado). */
+  savedStatus: 'draft' | 'issued' | 'paid' | null
+}
 
 function money(n: number | null | undefined): string {
   if (n == null) return '—'

@@ -23,9 +23,15 @@ export function Finanzas() {
 
 function BalanceTab() {
   const { data, loading } = useAsync(() => api.finance.dailyCashflow(), [])
+  const [err, setErr] = useState<string | null>(null)
   async function exportXlsx() {
-    const path = await api.exports.balance()
-    alert('Excel generado en:\n' + path)
+    setErr(null)
+    try {
+      const path = await api.exports.balance()
+      alert('Excel generado en:\n' + path)
+    } catch (e: any) {
+      setErr('Error: ' + (e?.message ?? e))
+    }
   }
   if (loading || !data) return <Spinner />
   const rows = data.rows.slice(-120).reverse()
@@ -38,6 +44,7 @@ function BalanceTab() {
         </div>
         <button className="btn" onClick={exportXlsx}>Exportar a Excel</button>
       </div>
+      {err && <div className="err" style={{ padding: '0 16px 12px' }}>{err}</div>}
       {!rows.length ? <Empty>Sin movimientos.</Empty> : (
         <table className="data">
           <thead><tr><th>Fecha</th><th className="num">Ing. clientes</th><th className="num">Ing. bar</th><th className="num">IN</th><th className="num">OUT</th><th className="num">Saldo</th></tr></thead>
@@ -63,9 +70,15 @@ function MonthTab() {
   const [year, setYear] = useState(now.getFullYear())
   const [month, setMonth] = useState(now.getMonth() + 1)
   const { data, loading, reload } = useAsync(() => api.finance.monthSummary(year, month), [year, month])
+  const [err, setErr] = useState<string | null>(null)
   async function exportXlsx() {
-    const path = await api.exports.monthSummary(year, month)
-    alert('Excel generado en:\n' + path)
+    setErr(null)
+    try {
+      const path = await api.exports.monthSummary(year, month)
+      alert('Excel generado en:\n' + path)
+    } catch (e: any) {
+      setErr('Error: ' + (e?.message ?? e))
+    }
   }
   return (
     <div className="panel panel-p">
@@ -78,6 +91,7 @@ function MonthTab() {
         <div className="grow" />
         <button className="btn" onClick={exportXlsx}>Exportar a Excel</button>
       </div>
+      {err && <div className="err" style={{ marginBottom: 12 }}>{err}</div>}
       {loading || !data ? <Spinner /> : (
         <div className="grid" style={{ gridTemplateColumns: '1fr 1fr' }}>
           <table className="data">

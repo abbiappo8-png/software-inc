@@ -23,10 +23,11 @@ import * as excelExport from '../services/excelExport'
 import { importWorkbook } from '../services/importer'
 import { savePersonPhoto, absolutePhotoPath } from '../services/photos'
 import { renderHtmlToPdf } from '../services/pdf'
-import { clientBillHtml, settlementHtml } from '../templates/documents'
+import { clientBillHtml, settlementHtml } from '@shared/templates/documents'
 import { sendInvoiceEmail, verifySmtp } from '../services/email'
 import { encryptSecret } from '../services/crypto'
 import * as forms from '../services/formsSync'
+import * as filesLib from '../services/filesLib'
 
 const personInput = z.object({
   fullName: z.string().min(1),
@@ -308,4 +309,12 @@ export function registerHandlers(getMainWindow: () => BrowserWindow | null): voi
   ipcMain.handle('exports:balance', (_e, from?: string, to?: string) => excelExport.exportBalance(from, to))
   ipcMain.handle('exports:monthSummary', (_e, year: number, month: number) => excelExport.exportMonthSummary(Number(year), Number(month)))
   ipcMain.handle('exports:openFolder', () => shell.openPath(getPaths().exportsDir).then(() => undefined))
+
+  // ---- biblioteca de archivos (pestaña "Archivos") ----
+  const fileName = z.string().min(1)
+  ipcMain.handle('files:list', () => filesLib.listFiles())
+  ipcMain.handle('files:add', () => filesLib.addFiles(getMainWindow()))
+  ipcMain.handle('files:remove', (_e, name: string) => filesLib.removeFile(fileName.parse(name)))
+  ipcMain.handle('files:open', (_e, name: string) => filesLib.openExternal(fileName.parse(name)))
+  ipcMain.handle('files:read', (_e, name: string) => filesLib.readWorkbook(fileName.parse(name)))
 }

@@ -1,7 +1,7 @@
 /** Planes de pago / amortización (generaliza "ozuna pago de cometa"). */
 import { getDb } from '../db/connection'
 import type { PaymentPlan } from '@shared/types/domain'
-import { schedule, outstanding } from '../services/paymentPlans'
+import { schedule, outstanding } from '@shared/services/paymentPlans'
 
 function loadInstallments(planId: number) {
   return getDb()

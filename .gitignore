@@ -3,6 +3,7 @@ node_modules/
 out/
 dist/
 demo-dist/
+dist-web/
 *.log
 
 # Datos locales de la app (NUNCA se suben: contienen información de clientes)

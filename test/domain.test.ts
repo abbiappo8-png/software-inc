@@ -5,23 +5,23 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 
-import { roundCOP, formatCOP, pctToFactor } from '../src/main/services/money'
+import { roundCOP, formatCOP, pctToFactor } from '../shared/services/money'
 import {
   excelSerialToISO,
   dayFractionToMinutes,
   minutesToHHMM,
   parseFlexibleDate,
   datedifDays
-} from '../src/main/services/dates'
-import { normalize, normalizeCountry } from '../src/main/services/text'
-import { autoPrice, professorSalary, derivePayModel, realHours } from '../src/main/services/pricing'
-import { detectCourse, accumulatedClassHours } from '../src/main/services/courses'
-import { computeClientBill } from '../src/main/services/billing'
-import { computeProfessorPayroll } from '../src/main/services/payroll'
-import { computeRunningBalance } from '../src/main/services/balance'
-import { ageAt, ageBucket, ageHistogram } from '../src/main/services/statistics'
-import { unitCost, saleTotal, canSell } from '../src/main/services/bar'
-import { schedule, outstanding } from '../src/main/services/paymentPlans'
+} from '../shared/services/dates'
+import { normalize, normalizeCountry } from '../shared/services/text'
+import { autoPrice, professorSalary, derivePayModel, realHours } from '../shared/services/pricing'
+import { detectCourse, accumulatedClassHours } from '../shared/services/courses'
+import { computeClientBill } from '../shared/services/billing'
+import { computeProfessorPayroll } from '../shared/services/payroll'
+import { computeRunningBalance } from '../shared/services/balance'
+import { ageAt, ageBucket, ageHistogram } from '../shared/services/statistics'
+import { unitCost, saleTotal, canSell } from '../shared/services/bar'
+import { schedule, outstanding } from '../shared/services/paymentPlans'
 
 // --------------------------------------------------------------------------
 test('money: roundCOP y factor de descuento', () => {
@@ -229,8 +229,8 @@ test('paymentPlans: amortización reproduce "ozuna pago de cometa"', () => {
 })
 
 // --------------------------------------------------------------------------
-import { parseCsv, csvToObjects } from '../src/main/services/csv'
-import { rowHash, guess, parseHourish } from '../src/main/services/formsGuess'
+import { parseCsv, csvToObjects } from '../shared/services/csv'
+import { rowHash, guess, parseHourish } from '../shared/services/formsGuess'
 
 test('csv: comillas, comas y saltos dentro de celdas', () => {
   const text = 'Nombre,Comentario\n"Pérez, Ana","Dijo ""hola""\ny se fue"\nBeto,simple'
@@ -282,4 +282,17 @@ test('forms: parseHourish con am/pm y formatos sueltos', () => {
   assert.equal(parseHourish('8:30 p. m.'), 1230)
   assert.equal(parseHourish('12:15 a. m.'), 15)
   assert.equal(parseHourish('sin hora'), null)
+})
+
+// ── sha256 puro (shared/services/hash) ─────────────────────────────────────
+import { sha256Hex } from '../shared/services/hash'
+
+test('hash: sha256Hex coincide con digests conocidos (shasum -a 256)', () => {
+  assert.equal(sha256Hex(''), 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855')
+  assert.equal(sha256Hex('abc'), 'ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad')
+  assert.equal(sha256Hex('kite addict'), '3ba9a2e2a3201839ab4e5c9a6417252141f414e843c1cbc05917e5fb0f656e49')
+  // UTF-8 multibyte (tildes y emoji) para cubrir la codificación manual
+  assert.equal(sha256Hex('ñandú 🪁'), 'cb6a29e4c2d781a21e994d2471ed1719919700d221a4569d6850a49ddd16957e')
+  // Entrada > 64 bytes para cubrir múltiples bloques
+  assert.equal(sha256Hex('a'.repeat(100)), '2816597888e4a0d3a36b82b83316ab32680eb8f00f8cd3b904d681246d285a0e')
 })

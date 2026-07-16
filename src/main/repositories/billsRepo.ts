@@ -1,7 +1,7 @@
 /** Facturación de cliente: preview (cálculo) y persistencia. */
 import { getDb } from '../db/connection'
 import type { ClientBill, ClientBillItem } from '@shared/types/domain'
-import { computeClientBill, lodgingDaysFromStay } from '../services/billing'
+import { computeClientBill, lodgingDaysFromStay } from '@shared/services/billing'
 import { getCompanyConfig } from './settingsRepo'
 
 export interface BillOptions {

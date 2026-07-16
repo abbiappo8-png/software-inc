@@ -449,8 +449,46 @@ export const mockApi: AppApi = {
       return { ...r }
     }
   },
+  files: {
+    list: async () => demoFiles.map((f) => ({ ...f })),
+    add: async () => {
+      throw new Error('En el demo no se pueden añadir archivos. En la app real se abre el selector del equipo.')
+    },
+    remove: async (name) => {
+      const i = demoFiles.findIndex((f) => f.name === name)
+      if (i >= 0) demoFiles.splice(i, 1)
+      return demoFiles.map((f) => ({ ...f }))
+    },
+    open: async () => {
+      throw new Error('En el demo no hay Excel instalado. En la app real el archivo se abre con Excel/Numbers.')
+    },
+    read: async (name) => {
+      const f = demoFiles.find((x) => x.name === name)
+      if (!f) throw new Error('Archivo no encontrado')
+      return { fileName: name, sheets: demoSheets[name].map((s) => ({ name: s, rows: demoSheetRows(s), truncated: false })) }
+    }
+  },
   backup: { create: notAvailable, list: async () => [] },
   exports: { balance: notAvailable, monthSummary: notAvailable, openFolder: async () => undefined }
+}
+
+// ---- pestaña "Archivos" (demo): nombres reales de archivos/hojas, celdas de EJEMPLO ----
+const demoFiles = [
+  { name: 'Archivos KITE ADDICT.xlsx', size: 237142, mtime: '2025-11-02T10:00:00.000Z', ext: 'xlsx' },
+  { name: 'Precios_Kite Addict Colombia 2025.xlsx', size: 252608, mtime: '2025-11-02T10:00:00.000Z', ext: 'xlsx' }
+]
+const demoSheets: Record<string, string[]> = {
+  'Archivos KITE ADDICT.xlsx': ['In & Out', 'Yoga', 'Oswaldo Prestamo', 'Pendiente Estudiante', 'To Does', 'UTRIPER Infos', 'Cosas que falten en la escuela', 'Precios & Inventario Shop'],
+  'Precios_Kite Addict Colombia 2025.xlsx': ['Kite + Alquiler', 'Downwind & Kite Caddy', 'Wing Foil + Wing Skate + Alquil', 'Windsurf', 'Towing', 'SUP', 'Umrechnung', 'clases kite', 'ClasesKite2023 2024', 'Tabelle1', 'rental']
+}
+function demoSheetRows(sheet: string): string[][] {
+  // Datos inventados para el demo (los reales solo viven en la app instalada)
+  return [
+    ['Concepto', 'Detalle', 'Valor'],
+    [`${sheet} — ejemplo 1`, 'Dato de muestra', '$ 150.000'],
+    [`${sheet} — ejemplo 2`, 'Dato de muestra', '$ 90.000'],
+    ['(demo)', 'El contenido real se ve en la app instalada', '—']
+  ]
 }
 
 // ---- helpers de cálculo ----

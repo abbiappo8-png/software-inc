@@ -1,8 +1,8 @@
 /** Repositorio del catálogo de servicios y equipos. */
 import { getDb } from '../db/connection'
 import type { Equipment, ServiceCatalogItem } from '@shared/types/domain'
-import { normalize } from '../services/text'
-import type { CourseLevel } from '../services/courses'
+import { normalize } from '@shared/services/text'
+import type { CourseLevel } from '@shared/services/courses'
 
 function mapService(r: any): ServiceCatalogItem {
   return {

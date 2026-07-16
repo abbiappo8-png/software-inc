@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react'
 import { NavLink, Route, Routes, Navigate } from 'react-router-dom'
-import { api, IS_DEMO } from './lib/api'
+import { api, IS_DEMO, IS_WEB } from './lib/api'
 import { Spinner } from './components/ui'
 import { Logo } from './components/Logo'
 import { SetPinScreen, PinGate } from './features/Auth'
@@ -16,6 +16,7 @@ import { Liquidaciones } from './features/Liquidaciones'
 import { Finanzas } from './features/Finanzas'
 import { PlanesPago } from './features/PlanesPago'
 import { ReservasWeb } from './features/ReservasWeb'
+import { Archivos } from './features/Archivos'
 import { Ajustes } from './features/Ajustes'
 import type { AppStatus } from '@shared/types/api'
 
@@ -50,6 +51,14 @@ export default function App() {
     if (!IS_DEMO) refresh()
   }, [])
 
+  // Web: si la sesión de Supabase expira (o se cierra sesión), vuelve al bloqueo por PIN.
+  useEffect(() => {
+    if (!IS_WEB) return
+    const onSessionLost = () => setPhase('locked')
+    window.addEventListener('sb:session-lost', onSessionLost)
+    return () => window.removeEventListener('sb:session-lost', onSessionLost)
+  }, [])
+
   async function afterUnlock() {
     const s = await api.auth.status()
     setStatus(s)
@@ -76,8 +85,11 @@ export default function App() {
           </NavLink>
         ))}
         <div className="spacer" />
+        <NavLink to="/archivos" className={({ isActive }) => (isActive ? 'active' : '')}>
+          Archivos
+        </NavLink>
         <div className="muted" style={{ fontSize: 11, padding: '8px 10px' }}>
-          Datos locales en este equipo
+          {IS_WEB ? 'Datos en la nube (Supabase)' : 'Datos locales en este equipo'}
         </div>
       </nav>
       <main className="main">
@@ -93,6 +105,7 @@ export default function App() {
           <Route path="/liquidaciones" element={<Liquidaciones />} />
           <Route path="/finanzas" element={<Finanzas />} />
           <Route path="/planes" element={<PlanesPago />} />
+          <Route path="/archivos" element={<Archivos />} />
           <Route path="/ajustes" element={<Ajustes />} />
           <Route path="*" element={<Navigate to="/" />} />
         </Routes>

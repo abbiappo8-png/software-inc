@@ -1,8 +1,8 @@
 /** Repositorio del bar: productos (inventario) y ventas (POS). */
 import { getDb } from '../db/connection'
 import type { BarProduct, BarSale } from '@shared/types/domain'
-import { normalize } from '../services/text'
-import { unitCost, saleTotal, canSell } from '../services/bar'
+import { normalize } from '@shared/services/text'
+import { unitCost, saleTotal, canSell } from '@shared/services/bar'
 
 function mapProduct(r: any): BarProduct {
   const cost = unitCost(r.box_price, r.units_per_box)

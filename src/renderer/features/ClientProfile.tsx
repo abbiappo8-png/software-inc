@@ -26,7 +26,7 @@ export function ClientProfile({ personId, onClose }: { personId: number; onClose
     const f = e.target.files?.[0]
     if (!f) return
     const b64 = bytesToBase64(new Uint8Array(await f.arrayBuffer()))
-    setPhoto('data:image/*;base64,' + b64)
+    setPhoto(`data:${f.type || 'image/jpeg'};base64,` + b64)
     await api.persons.setPhoto(personId, b64)
   }
 

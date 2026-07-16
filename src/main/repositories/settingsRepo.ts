@@ -1,5 +1,7 @@
 /** Acceso genérico a la tabla settings (clave/valor). */
 import { getDb } from '../db/connection'
+import type { CompanyConfig } from '@shared/types/domain'
+export type { CompanyConfig }
 
 export function get(key: string): string | null {
   const row = getDb().prepare('SELECT value FROM settings WHERE key=?').get(key) as
@@ -31,13 +33,7 @@ export function setJSON(key: string, value: unknown): void {
   set(key, JSON.stringify(value))
 }
 
-/** Config no sensible de la empresa/app (para la UI de Ajustes). */
-export interface CompanyConfig {
-  companyName: string
-  companyNit: string
-  cardSurchargePct: number
-  currency: string
-}
+/** Config no sensible de la empresa/app (tipo compartido en @shared/types/domain). */
 
 export function getCompanyConfig(): CompanyConfig {
   return {

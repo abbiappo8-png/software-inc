@@ -14,9 +14,9 @@ import { createHash } from 'node:crypto'
 import { readFileSync } from 'node:fs'
 import type { Database as DB } from 'better-sqlite3'
 import type { ImportError, ImportReport } from '@shared/types/domain'
-import { parseFlexibleDate, excelSerialToISO, dayFractionToMinutes } from './dates'
-import { normalize, cleanName, normalizeCountry } from './text'
-import { derivePayModel } from './pricing'
+import { parseFlexibleDate, excelSerialToISO, dayFractionToMinutes } from '@shared/services/dates'
+import { normalize, cleanName, normalizeCountry } from '@shared/services/text'
+import { derivePayModel } from '@shared/services/pricing'
 
 // ---------- helpers de lectura de celdas ----------
 

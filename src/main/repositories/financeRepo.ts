@@ -5,8 +5,8 @@
  */
 import { getDb } from '../db/connection'
 import type { DailyCashflowRow, MonthSummary, AgeBucket } from '@shared/types/domain'
-import { computeRunningBalance, totals, type DayAggregate } from '../services/balance'
-import { ageAt, ageHistogram } from '../services/statistics'
+import { computeRunningBalance, totals, type DayAggregate } from '@shared/services/balance'
+import { ageAt, ageHistogram } from '@shared/services/statistics'
 
 function todayISO(): string {
   return new Date().toISOString().slice(0, 10)

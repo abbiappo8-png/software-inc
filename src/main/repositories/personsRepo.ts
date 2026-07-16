@@ -1,7 +1,7 @@
 /** Repositorio de personas (clientes / profesores / proveedores). */
 import { getDb } from '../db/connection'
 import type { Person, PersonInput } from '@shared/types/domain'
-import { normalize, cleanName, normalizeCountry } from '../services/text'
+import { normalize, cleanName, normalizeCountry } from '@shared/services/text'
 
 function mapRow(r: any): Person {
   return {

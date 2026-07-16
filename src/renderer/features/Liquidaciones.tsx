@@ -19,15 +19,24 @@ export function Liquidaciones() {
     setMsg(null)
     try {
       setPreview(await api.settlements.preview(professorId, year, month))
+    } catch (e: any) {
+      setMsg('Error: ' + (e?.message ?? e))
     } finally {
       setBusy(false)
     }
   }
   async function save() {
     if (!professorId) return
-    await api.settlements.save(professorId, year, month)
-    setPreview(await api.settlements.preview(professorId, year, month))
-    setMsg('Liquidación guardada.')
+    setBusy(true)
+    try {
+      await api.settlements.save(professorId, year, month)
+      setPreview(await api.settlements.preview(professorId, year, month))
+      setMsg('Liquidación guardada.')
+    } catch (e: any) {
+      setMsg('Error: ' + (e?.message ?? e))
+    } finally {
+      setBusy(false)
+    }
   }
   async function marcarPagado() {
     if (!professorId) return
@@ -44,8 +53,13 @@ export function Liquidaciones() {
   }
   async function pdf() {
     if (!professorId) return
-    const path = await api.settlements.pdf(professorId, year, month)
-    setMsg('PDF generado: ' + path)
+    try {
+      const path = await api.settlements.pdf(professorId, year, month)
+      setMsg('PDF generado: ' + path)
+    } catch (e: any) {
+      // p. ej. pop-up bloqueado en la web: "permite las ventanas emergentes…"
+      setMsg('Error: ' + (e?.message ?? e))
+    }
   }
 
   return (
@@ -70,7 +84,7 @@ export function Liquidaciones() {
         </div>
         <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
           <button className="btn primary" onClick={doPreview} disabled={!professorId || busy}>Calcular</button>
-          <button className="btn" onClick={save} disabled={!preview}>Guardar</button>
+          <button className="btn" onClick={save} disabled={!preview || busy}>Guardar</button>
           <button
             className="btn primary"
             onClick={marcarPagado}

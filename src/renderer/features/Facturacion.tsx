@@ -21,12 +21,19 @@ export function Facturacion() {
     setBusy(true)
     try {
       setPreview(await api.bills.preview(id, opts))
+    } catch (e: any) {
+      setMsg('Error: ' + (e?.message ?? e))
     } finally {
       setBusy(false)
     }
   }
   async function refresh() {
-    if (clientId) setPreview(await api.bills.preview(clientId, opts))
+    if (!clientId) return
+    try {
+      setPreview(await api.bills.preview(clientId, opts))
+    } catch (e: any) {
+      setMsg('Error: ' + (e?.message ?? e))
+    }
   }
 
   /** Cobrar: crea la factura y registra el cobro → el saldo del cliente queda en $0. */
@@ -48,8 +55,13 @@ export function Facturacion() {
 
   async function pdf() {
     if (!done) return
-    const path = await api.bills.pdf(done.billId)
-    if (path) setMsg('PDF generado: ' + path)
+    try {
+      const path = await api.bills.pdf(done.billId)
+      if (path) setMsg('PDF generado: ' + path)
+    } catch (e: any) {
+      // p. ej. pop-up bloqueado en la web: "permite las ventanas emergentes…"
+      setMsg('Error: ' + (e?.message ?? e))
+    }
   }
   async function email() {
     if (!done) return
@@ -57,6 +69,8 @@ export function Facturacion() {
     try {
       const res = await api.bills.email(done.billId)
       setMsg(res.ok ? 'Factura enviada por correo ✔' : 'No se pudo enviar: ' + res.error)
+    } catch (e: any) {
+      setMsg('Error: ' + (e?.message ?? e))
     } finally {
       setBusy(false)
     }

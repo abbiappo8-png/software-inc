@@ -9,7 +9,7 @@ import { importWorkbook } from '../src/main/services/importer'
 import * as finance from '../src/main/repositories/financeRepo'
 import * as bills from '../src/main/repositories/billsRepo'
 import * as settlements from '../src/main/repositories/settlementsRepo'
-import { formatCOP } from '../src/main/services/money'
+import { formatCOP } from '../shared/services/money'
 
 async function main() {
   const xlsx = process.argv[2] || '../software inc.xlsx'

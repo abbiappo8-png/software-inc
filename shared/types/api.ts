@@ -19,7 +19,9 @@ import type {
   FormConfig,
   FormResponse,
   FormGuess,
-  FormSyncResult
+  FormSyncResult,
+  StoredFile,
+  WorkbookData
 } from './domain'
 
 /** Datos para crear/editar un producto del bar (el stock y costo se calculan aparte). */
@@ -144,6 +146,17 @@ export interface AppApi {
     /** Convierte una respuesta en cliente o en reserva (transacción abierta). */
     convert(responseId: number, kind: 'client' | 'reservation', edited?: Partial<FormGuess>): Promise<FormResponse>
     ignore(responseId: number): Promise<FormResponse>
+  }
+  files: {
+    /** Archivos guardados en la biblioteca de la app (pestaña "Archivos"). */
+    list(): Promise<StoredFile[]>
+    /** Abre el selector, copia los elegidos a la biblioteca y devuelve la lista. */
+    add(): Promise<StoredFile[]>
+    remove(name: string): Promise<StoredFile[]>
+    /** Abre el archivo con la aplicación del sistema (Excel/Numbers…). */
+    open(name: string): Promise<void>
+    /** Lee un .xlsx para el visor interno (hojas como texto, recortadas al límite del visor). */
+    read(name: string): Promise<WorkbookData>
   }
   backup: {
     create(): Promise<string>

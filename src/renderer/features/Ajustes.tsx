@@ -1,5 +1,5 @@
 import React, { useState } from 'react'
-import { api, useAsync } from '../lib/api'
+import { api, useAsync, IS_WEB } from '../lib/api'
 import { Field, Spinner } from '../components/ui'
 import type { FormConfig } from '@shared/types/domain'
 
@@ -12,7 +12,7 @@ export function Ajustes() {
         <SmtpPanel />
         <FormsPanel />
         <PinPanel />
-        <BackupPanel />
+        {IS_WEB ? <CloudPanel /> : <BackupPanel />}
       </div>
     </div>
   )
@@ -157,13 +157,42 @@ function PinPanel() {
   )
 }
 
+/** Panel de datos en la versión web: sin copias locales, con cierre de sesión. */
+function CloudPanel() {
+  const [busy, setBusy] = useState(false)
+  async function lock() {
+    setBusy(true)
+    try {
+      // signOut() lo aporta supabaseRest; import dinámico para no cargarlo en escritorio/demo.
+      const rest: any = await import('../lib/supabaseRest')
+      await rest.signOut()
+    } finally {
+      // Bloquea la app aunque el revoke remoto falle (la sesión local ya se descartó).
+      window.dispatchEvent(new Event('sb:session-lost'))
+    }
+  }
+  return (
+    <div className="panel panel-p">
+      <h3 style={{ marginTop: 0 }}>Respaldos y datos</h3>
+      <p className="muted" style={{ fontSize: 12, marginTop: 0 }}>Los respaldos los gestiona Supabase automáticamente.</p>
+      <button className="btn primary" onClick={lock} disabled={busy}>
+        {busy ? <Spinner /> : 'Cerrar sesión / Bloquear'}
+      </button>
+    </div>
+  )
+}
+
 function BackupPanel() {
   const { data, reload } = useAsync(() => api.backup.list(), [])
   const [msg, setMsg] = useState('')
   async function create() {
-    const path = await api.backup.create()
-    setMsg('Copia creada: ' + path)
-    reload()
+    try {
+      const path = await api.backup.create()
+      setMsg('Copia creada: ' + path)
+      reload()
+    } catch (e: any) {
+      setMsg('Error: ' + (e?.message ?? e))
+    }
   }
   return (
     <div className="panel panel-p">

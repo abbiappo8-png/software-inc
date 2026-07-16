@@ -1,21 +1,11 @@
 /** Liquidación mensual de profesores (hoja Professor_Bill). */
 import { getDb } from '../db/connection'
 import type { ProfessorSettlement } from '@shared/types/domain'
-import { computeProfessorPayroll } from '../services/payroll'
+import { computeProfessorPayroll } from '@shared/services/payroll'
 import { get as getSetting } from './settingsRepo'
-
-export interface SettlementPreview {
-  professorId: number
-  professorName: string
-  year: number
-  month: number
-  salaryRows: { date: string; service: string | null; client: string | null; salary: number }[]
-  /** Gastos de Outcome a nombre del profesor (informativos; NO se descuentan por defecto). */
-  outcomeRows: { date: string; supply: string | null; amount: number; comment: string | null }[]
-  result: ReturnType<typeof computeProfessorPayroll>
-  /** Estado de la liquidación ya guardada de este periodo (null si aún no se ha guardado). */
-  savedStatus: 'draft' | 'issued' | 'paid' | null
-}
+// El tipo de la vista previa vive junto a la plantilla compartida del documento.
+import type { SettlementPreview } from '@shared/templates/documents'
+export type { SettlementPreview }
 
 function barDiscountPct(): number {
   return parseFloat(getSetting('bar_discount_pct') ?? '0')

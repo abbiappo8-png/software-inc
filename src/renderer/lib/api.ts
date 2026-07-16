@@ -1,10 +1,18 @@
 import { useCallback, useEffect, useState } from 'react'
 import type { AppApi } from '@shared/types/api'
 import { mockApi } from './mockApi'
+import { supabaseApi } from './supabaseApi'
 
 /** En MODO DEMO (build de navegador) se usa el API simulado; si no, el IPC real de Electron. */
 export const IS_DEMO: boolean = !!(import.meta as any).env?.VITE_DEMO
-export const api: AppApi = IS_DEMO ? mockApi : window.api
+/**
+ * MODO WEB: build de navegador con los datos en Supabase (sin Electron).
+ * Requiere la bandera VITE_TARGET=web (definida SOLO en vite.web.config.ts): la mera
+ * presencia de VITE_SUPABASE_URL en un .env no debe desviar el escritorio ni el demo.
+ */
+export const IS_WEB: boolean =
+  (import.meta as any).env?.VITE_TARGET === 'web' && !!(import.meta as any).env?.VITE_SUPABASE_URL
+export const api: AppApi = IS_DEMO ? mockApi : IS_WEB ? supabaseApi : window.api
 
 export function formatCOP(value: number | null | undefined): string {
   if (value == null || !isFinite(value)) return '—'

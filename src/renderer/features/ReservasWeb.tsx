@@ -21,6 +21,7 @@ export function ReservasWeb() {
   const [responses, setResponses] = useState<Resp[] | null>(null)
   const [syncInfo, setSyncInfo] = useState<FormSyncResult | null>(null)
   const [busy, setBusy] = useState(false)
+  const [err, setErr] = useState<string | null>(null)
   const [converting, setConverting] = useState<{ resp: Resp; kind: 'client' | 'reservation' } | null>(null)
 
   const forms = formsCfg.data ?? []
@@ -52,11 +53,21 @@ export function ReservasWeb() {
   }, [current?.key])
 
   async function reloadResponses() {
-    if (current?.key) setResponses(await api.forms.responses(current.key))
+    if (!current?.key) return
+    try {
+      setResponses(await api.forms.responses(current.key))
+    } catch (e: any) {
+      setErr('Error: ' + (e?.message ?? e))
+    }
   }
   async function ignorar(id: number) {
-    await api.forms.ignore(id)
-    reloadResponses()
+    setErr(null)
+    try {
+      await api.forms.ignore(id)
+      await reloadResponses()
+    } catch (e: any) {
+      setErr('Error: ' + (e?.message ?? e))
+    }
   }
 
   if (formsCfg.loading) return <div className="panel"><div style={{ padding: 24 }}><Spinner /></div></div>
@@ -100,6 +111,7 @@ export function ReservasWeb() {
         </div>
       </div>
 
+      {err && <div className="err" style={{ marginBottom: 12 }}>{err}</div>}
       {syncInfo?.error && <div className="err" style={{ marginBottom: 12 }}>{syncInfo.error}</div>}
       {syncInfo && !syncInfo.error && (
         <p className="muted" style={{ margin: '-6px 0 12px' }}>

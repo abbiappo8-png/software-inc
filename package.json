@@ -16,6 +16,7 @@
     "start": "electron-vite preview",
     "demo": "vite --config vite.demo.config.ts",
     "build:demo": "vite build --config vite.demo.config.ts",
+    "build:web": "vite build --config vite.web.config.ts",
     "typecheck:node": "tsc --noEmit -p tsconfig.node.json",
     "typecheck:web": "tsc --noEmit -p tsconfig.web.json",
     "typecheck": "npm run typecheck:node && npm run typecheck:web",

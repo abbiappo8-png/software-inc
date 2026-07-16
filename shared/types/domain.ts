@@ -339,3 +339,41 @@ export interface ImportReport {
   errors: ImportError[]
   durationMs: number
 }
+
+// ---------------------------------------------------------------------------
+// Biblioteca de archivos (pestaña "Archivos")
+// ---------------------------------------------------------------------------
+
+/** Un archivo guardado en la biblioteca de la app (userData/files). */
+export interface StoredFile {
+  name: string
+  /** Tamaño en bytes. */
+  size: number
+  /** Última modificación (ISO). */
+  mtime: string
+  /** Extensión en minúsculas, sin punto (xlsx, pdf, …). */
+  ext: string
+}
+
+/** Una hoja de un Excel leída para el visor (solo lectura). */
+export interface WorkbookSheet {
+  name: string
+  /** Celdas como texto visible, fila por fila. */
+  rows: string[][]
+  /** true si la hoja se recortó al límite de filas/columnas del visor. */
+  truncated: boolean
+}
+
+/** Contenido de un Excel de la biblioteca para el visor. */
+export interface WorkbookData {
+  fileName: string
+  sheets: WorkbookSheet[]
+}
+
+/** Config no sensible de la empresa/app (para la UI de Ajustes). */
+export interface CompanyConfig {
+  companyName: string
+  companyNit: string
+  cardSurchargePct: number
+  currency: string
+}

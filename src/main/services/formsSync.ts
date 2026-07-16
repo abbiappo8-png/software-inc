@@ -10,9 +10,9 @@
  */
 import { getDb } from '../db/connection'
 import type { FormConfig, FormGuess, FormResponse, FormSyncResult } from '@shared/types/domain'
-import { csvToObjects } from './csv'
-import { normalize, cleanName, normalizeCountry } from './text'
-import { rowHash, findTimestamp, guess } from './formsGuess'
+import { csvToObjects } from '@shared/services/csv'
+import { normalize, cleanName, normalizeCountry } from '@shared/services/text'
+import { rowHash, findTimestamp, guess } from '@shared/services/formsGuess'
 import * as settings from '../repositories/settingsRepo'
 
 const FORMS_KEY = 'google_forms'

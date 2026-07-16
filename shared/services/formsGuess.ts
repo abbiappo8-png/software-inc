@@ -2,7 +2,7 @@
  * Parte PURA de la integración con Google Forms (sin BD): hash de fila para el
  * dedupe, y auto-detección de campos por encabezados. Testeable en domain.test.ts.
  */
-import { createHash } from 'node:crypto'
+import { sha256Hex } from './hash'
 import type { FormGuess } from '@shared/types/domain'
 import { normalize } from './text'
 import { parseFlexibleDate } from './dates'
@@ -13,7 +13,7 @@ export function rowHash(formKey: string, row: Record<string, string>): string {
     .sort()
     .map((k) => `${k}=${row[k]}`)
     .join('')
-  return createHash('sha256').update(formKey + '' + canonical).digest('hex')
+  return sha256Hex(formKey + '' + canonical)
 }
 
 /** Marca temporal del form (si existe), como ISO si se puede parsear. */

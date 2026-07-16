@@ -102,6 +102,13 @@ const api: AppApi = {
     convert: (responseId, kind, edited) => call('forms:convert', responseId, kind, edited),
     ignore: (responseId) => call('forms:ignore', responseId)
   },
+  files: {
+    list: () => call('files:list'),
+    add: () => call('files:add'),
+    remove: (name) => call('files:remove', name),
+    open: (name) => call('files:open', name),
+    read: (name) => call('files:read', name)
+  },
   backup: {
     create: () => call('backup:create'),
     list: () => call('backup:list')
