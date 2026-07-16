@@ -1,5 +1,6 @@
 import React, { useEffect, useReducer, useState } from 'react'
 import { api, useAsync, formatCOP, minutesToHHMM, hhmmToMinutes, todayISO } from '../lib/api'
+import { googleCalendarInviteUrl } from '../lib/calendar'
 import { Spinner, Empty, Avatar, Field, Modal } from '../components/ui'
 import { PersonAvatar } from '../components/PersonAvatar'
 import { EditableTable, GridColumn } from '../components/EditableTable'
@@ -26,17 +27,22 @@ function fmtDur(min: number): string {
   return h > 0 ? `${h} h ${m} min` : `${m} min`
 }
 
-/** Alta de clase con contador: al pulsar "Empezar clase" queda abierta y el tiempo corre. */
-function NuevaClaseModal({ clients, professors, serviceOpts, onClose, onStarted }: {
+/** Alta de clase con contador: al pulsar "Empezar clase" queda abierta y el tiempo corre.
+ *  Si el profesor tiene correo, al crearla se ofrece la invitación de Google Calendar
+ *  (el profesor recibe la notificación por correo al guardar el evento). */
+function NuevaClaseModal({ clients, professors, serviceOpts, services, onClose, onStarted }: {
   clients: { id: number; label: string }[]
-  professors: { id: number; label: string }[]
+  professors: { id: number; label: string; email: string | null }[]
   serviceOpts: { value: string; label: string }[]
+  services: { id: number; name: string; hours: number | null }[]
   onClose: () => void
   onStarted: () => void
 }) {
-  const [form, setForm] = useState<any>({ clientId: '', serviceSel: CLASS, professorId: '', start: minutesToHHMM(nowMin()) })
+  const [form, setForm] = useState<any>({ clientId: '', serviceSel: CLASS, professorId: '', date: todayISO(), start: minutesToHHMM(nowMin()) })
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState<string | null>(null)
+  const [inviteUrl, setInviteUrl] = useState<string | null>(null)
+  const [profEmail, setProfEmail] = useState<string | null>(null)
 
   async function empezar() {
     if (!form.clientId || !form.serviceSel) {
@@ -47,9 +53,10 @@ function NuevaClaseModal({ clients, professors, serviceOpts, onClose, onStarted 
     setErr(null)
     try {
       const isClass = form.serviceSel === CLASS
+      const startMin = form.start ? hhmmToMinutes(form.start) ?? nowMin() : nowMin()
       await api.transactions.create({
-        txDate: todayISO(),
-        startMin: form.start ? hhmmToMinutes(form.start) : nowMin(), // hora de inicio modificable
+        txDate: form.date || todayISO(), // hoy = contador en marcha; futuro = clase agendada
+        startMin, // hora de inicio modificable
         endMin: null, // abierta: el contador corre hasta "Terminar"
         serviceId: isClass ? null : Number(form.serviceSel),
         isClass,
@@ -61,12 +68,51 @@ function NuevaClaseModal({ clients, professors, serviceOpts, onClose, onStarted 
         priceOverride: null,
         comment: null
       })
+      // Notificación al profesor: invitación de Google Calendar con él como invitado.
+      const prof = professors.find((p) => p.id === Number(form.professorId))
+      if (prof?.email) {
+        const svc = services.find((s) => s.id === Number(form.serviceSel))
+        const cliente = clients.find((c) => c.id === Number(form.clientId))?.label ?? 'Cliente'
+        const durMin = svc?.hours ? Math.round(svc.hours * 60) : 60
+        setProfEmail(prof.email)
+        setInviteUrl(
+          googleCalendarInviteUrl({
+            title: `Clase ${svc?.name ?? 'de curso'} — ${cliente}`,
+            dateISO: form.date || todayISO(),
+            startMin,
+            durationMin: durMin,
+            details: `Clase en Kite Addict Colombia con ${cliente}. Profesor: ${prof.label}.`,
+            guestEmail: prof.email
+          })
+        )
+        return // muestra el paso de invitación (no cierra aún)
+      }
       onStarted()
     } catch (e: any) {
       setErr(e?.message ?? String(e))
     } finally {
       setBusy(false)
     }
+  }
+
+  // Paso 2: la clase ya está creada; enviar la invitación al correo del profesor.
+  if (inviteUrl) {
+    return (
+      <Modal
+        title="✅ Clase creada — notificar al profesor"
+        onClose={onStarted}
+        footer={<button className="btn" onClick={onStarted}>Listo</button>}
+      >
+        <p style={{ marginTop: 0 }}>
+          El profesor tiene correo (<strong>{profEmail}</strong>). Abre la invitación y pulsa
+          «Guardar» en Google Calendar: <strong>le llegará la notificación al correo</strong> con la
+          clase para añadirla a su calendario.
+        </p>
+        <button className="btn primary" style={{ width: '100%' }} onClick={() => window.open(inviteUrl, '_blank')}>
+          🗓 Abrir invitación de Google Calendar
+        </button>
+      </Modal>
+    )
   }
 
   return (
@@ -77,7 +123,7 @@ function NuevaClaseModal({ clients, professors, serviceOpts, onClose, onStarted 
         <>
           <button className="btn" onClick={onClose} disabled={busy}>Cancelar</button>
           <button className="btn primary" onClick={empezar} disabled={busy || !form.clientId || !form.serviceSel}>
-            {busy ? 'Empezando…' : '▶ Empezar clase'}
+            {busy ? 'Empezando…' : form.date && form.date !== todayISO() ? '🗓 Agendar clase' : '▶ Empezar clase'}
           </button>
         </>
       }
@@ -99,17 +145,20 @@ function NuevaClaseModal({ clients, professors, serviceOpts, onClose, onStarted 
         <Field label="Profesor">
           <select value={form.professorId} onChange={(e) => setForm((f: any) => ({ ...f, professorId: e.target.value }))}>
             <option value="">—</option>
-            {professors.map((p) => <option key={p.id} value={p.id}>{p.label}</option>)}
+            {professors.map((p) => <option key={p.id} value={p.id}>{p.label}{p.email ? ' ✉' : ''}</option>)}
           </select>
         </Field>
-        <Field label="Hora de inicio (modificable)">
-          <input type="time" value={form.start} onChange={(e) => setForm((f: any) => ({ ...f, start: e.target.value }))} />
+        <Field label="Fecha (hoy o futura para agendar)">
+          <input type="date" value={form.date} onChange={(e) => setForm((f: any) => ({ ...f, date: e.target.value }))} />
         </Field>
       </div>
+      <Field label="Hora de inicio (modificable)">
+        <input type="time" value={form.start} onChange={(e) => setForm((f: any) => ({ ...f, start: e.target.value }))} />
+      </Field>
       <p className="muted" style={{ fontSize: 12 }}>
-        Al pulsar «Empezar clase» el contador queda en marcha. Cuando termine, pulsa
-        «⏹ Terminar» en la tarjeta de la clase: el contador se detiene y se muestra el
-        precio a pagar del cliente.
+        Con fecha de HOY el contador queda en marcha («⏹ Terminar» lo detiene y muestra el precio).
+        Con fecha futura la clase queda agendada. Si el profesor tiene correo (✉), al crearla se
+        abre la invitación de Google Calendar para notificarle.
       </p>
       {err && <div className="err">{err}</div>}
     </Modal>
@@ -257,7 +306,8 @@ export function Transacciones() {
   const nameOf = (id: number | null) => persons.data?.find((p) => p.id === id)?.fullName ?? '—'
   const svcName = (t: Transaction) =>
     (services.data ?? []).find((s) => s.id === (t.resolvedServiceId ?? t.serviceId))?.name ?? (t.isClass ? 'Clase de curso' : t.serviceRaw ?? 'Servicio')
-  const openSessions = (data ?? []).filter((t) => t.isOpen)
+  // Tarjetas con contador: solo las abiertas de HOY (las de fecha futura son agendadas)
+  const openSessions = (data ?? []).filter((t) => t.isOpen && t.txDate === todayISO())
 
   const columns: GridColumn[] = [
     { key: 'txDate', label: 'Fecha', type: 'date', width: 140 },
@@ -330,8 +380,9 @@ export function Transacciones() {
       {addingClass && (
         <NuevaClaseModal
           clients={clients.filter((c) => c.stillHere !== false).map((c) => ({ id: c.id, label: c.fullName }))}
-          professors={professors.filter((p) => p.stillHere !== false).map((p) => ({ id: p.id, label: p.nickname || p.fullName }))}
+          professors={professors.filter((p) => p.stillHere !== false).map((p) => ({ id: p.id, label: p.nickname || p.fullName, email: p.email ?? null }))}
           serviceOpts={serviceOpts}
+          services={(services.data ?? []).map((s) => ({ id: s.id, name: s.name, hours: s.hours ?? null }))}
           onClose={() => setAddingClass(false)}
           onStarted={() => { setAddingClass(false); reload() }}
         />
