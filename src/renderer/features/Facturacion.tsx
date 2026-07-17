@@ -1,6 +1,7 @@
 import React, { useState } from 'react'
 import { api, useAsync, formatCOP } from '../lib/api'
 import { Field, Spinner } from '../components/ui'
+import { SearchSelect } from '../components/SearchSelect'
 
 type Done = { billId: number } | null
 
@@ -87,10 +88,12 @@ export function Facturacion() {
       <div className="grid" style={{ gridTemplateColumns: '360px 1fr' }}>
         <div className="panel panel-p">
           <Field label="Cliente">
-            <select value={clientId ?? ''} onChange={(e) => doPreview(Number(e.target.value))}>
-              <option value="">— Selecciona —</option>
-              {clients.data?.map((c) => <option key={c.id} value={c.id}>{c.fullName}</option>)}
-            </select>
+            <SearchSelect
+              value={clientId == null ? '' : String(clientId)}
+              options={(clients.data ?? []).map((c) => ({ value: String(c.id), label: c.fullName }))}
+              onChange={(v) => v && doPreview(Number(v))}
+              placeholder="— Busca el cliente —"
+            />
           </Field>
           <div className="row2">
             <Field label="Descuento factura (%)"><input type="number" value={opts.discountPct} onChange={(e) => setOpts({ ...opts, discountPct: Number(e.target.value) })} onBlur={refresh} /></Field>

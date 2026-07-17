@@ -1,5 +1,9 @@
 import React, { useState } from 'react'
 import { formatCOP, minutesToHHMM, hhmmToMinutes } from '../lib/api'
+import { SearchSelect } from './SearchSelect'
+
+/** A partir de cuántas opciones el select de una celda usa buscador. */
+const SEARCH_THRESHOLD = 12
 
 /**
  * Cuadrícula editable en línea, estilo hoja de cálculo (como el Excel base):
@@ -76,6 +80,18 @@ function EditCell({ col, value, onCommit, live, autoFocus, onDone }: {
   const align = col.align ?? (col.type === 'money' || col.type === 'number' ? 'right' : 'left')
 
   if (col.type === 'select') {
+    // Listas largas (clientes, servicios…): desplegable CON BUSCADOR.
+    if ((col.options?.length ?? 0) > SEARCH_THRESHOLD) {
+      return (
+        <SearchSelect
+          value={value == null ? '' : String(value)}
+          options={(col.options ?? []).map((o) => ({ value: String(o.value), label: o.label }))}
+          openOnMount={autoFocus}
+          onChange={(v) => { onCommit(v === '' ? null : coerce(col, v)); onDone?.() }}
+          onClose={onDone}
+        />
+      )
+    }
     return (
       <select
         className="cell-input" autoFocus={autoFocus} value={value ?? ''}

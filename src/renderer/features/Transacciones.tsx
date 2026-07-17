@@ -2,6 +2,7 @@ import React, { useEffect, useReducer, useState } from 'react'
 import { api, useAsync, formatCOP, minutesToHHMM, hhmmToMinutes, todayISO } from '../lib/api'
 import { googleCalendarInviteUrl } from '../lib/calendar'
 import { Spinner, Empty, Avatar, Field, Modal } from '../components/ui'
+import { SearchSelect } from '../components/SearchSelect'
 import { PersonAvatar } from '../components/PersonAvatar'
 import { EditableTable, GridColumn } from '../components/EditableTable'
 import type { Transaction } from '@shared/types/domain'
@@ -130,23 +131,30 @@ function NuevaClaseModal({ clients, professors, serviceOpts, services, onClose, 
     >
       <div className="row2">
         <Field label="Cliente *">
-          <select autoFocus value={form.clientId} onChange={(e) => setForm((f: any) => ({ ...f, clientId: e.target.value }))}>
-            <option value="">— Selecciona —</option>
-            {clients.map((c) => <option key={c.id} value={c.id}>{c.label}</option>)}
-          </select>
+          <SearchSelect
+            value={form.clientId}
+            options={clients.map((c) => ({ value: String(c.id), label: c.label }))}
+            onChange={(v) => setForm((f: any) => ({ ...f, clientId: v }))}
+            placeholder="— Busca el cliente —"
+          />
         </Field>
         <Field label="Servicio / Clase *">
-          <select value={form.serviceSel} onChange={(e) => setForm((f: any) => ({ ...f, serviceSel: e.target.value }))}>
-            {serviceOpts.filter((o) => o.value !== '').map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
-          </select>
+          <SearchSelect
+            value={form.serviceSel}
+            options={serviceOpts.filter((o) => o.value !== '').map((o) => ({ value: o.value, label: o.label }))}
+            onChange={(v) => setForm((f: any) => ({ ...f, serviceSel: v }))}
+            placeholder="— Busca el servicio —"
+          />
         </Field>
       </div>
       <div className="row2">
         <Field label="Profesor">
-          <select value={form.professorId} onChange={(e) => setForm((f: any) => ({ ...f, professorId: e.target.value }))}>
-            <option value="">—</option>
-            {professors.map((p) => <option key={p.id} value={p.id}>{p.label}{p.email ? ' ✉' : ''}</option>)}
-          </select>
+          <SearchSelect
+            value={form.professorId}
+            options={professors.map((p) => ({ value: String(p.id), label: p.label + (p.email ? ' ✉' : '') }))}
+            onChange={(v) => setForm((f: any) => ({ ...f, professorId: v }))}
+            placeholder="—"
+          />
         </Field>
         <Field label="Fecha (hoy o futura para agendar)">
           <input type="date" value={form.date} onChange={(e) => setForm((f: any) => ({ ...f, date: e.target.value }))} />

@@ -1,6 +1,7 @@
 import React, { useState } from 'react'
 import { api, useAsync, formatCOP } from '../lib/api'
 import { Field, Spinner } from '../components/ui'
+import { SearchSelect } from '../components/SearchSelect'
 
 const now = new Date()
 
@@ -68,10 +69,12 @@ export function Liquidaciones() {
       <div className="panel panel-p">
         <div className="row3" style={{ alignItems: 'end' }}>
           <Field label="Profesor">
-            <select value={professorId ?? ''} onChange={(e) => setProfessorId(Number(e.target.value))}>
-              <option value="">— Selecciona —</option>
-              {professors.data?.map((p) => <option key={p.id} value={p.id}>{p.nickname || p.fullName}</option>)}
-            </select>
+            <SearchSelect
+              value={professorId == null ? '' : String(professorId)}
+              options={(professors.data ?? []).map((p) => ({ value: String(p.id), label: p.nickname || p.fullName }))}
+              onChange={(v) => v && setProfessorId(Number(v))}
+              placeholder="— Busca el profesor —"
+            />
           </Field>
           <Field label="Mes">
             <select value={month} onChange={(e) => setMonth(Number(e.target.value))}>
