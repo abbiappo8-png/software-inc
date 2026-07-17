@@ -179,6 +179,8 @@ export const mockApi: AppApi = {
       let r = transactions
       if (filter?.clientId) r = r.filter((t) => t.clientId === filter.clientId)
       if (filter?.professorId) r = r.filter((t) => t.professorId === filter.professorId)
+      if (filter?.from) r = r.filter((t) => t.txDate >= filter.from!)
+      if (filter?.to) r = r.filter((t) => t.txDate <= filter.to!)
       return r.map((t) => ({ ...t })).sort((a, b) => b.txDate.localeCompare(a.txDate))
     },
     preview: async (input: any) => computeTx(input),
