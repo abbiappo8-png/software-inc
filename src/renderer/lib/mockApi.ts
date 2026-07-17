@@ -657,7 +657,7 @@ function buildSettlement(professorId: number, year: number, month: number) {
   const prefix = `${year}-${String(month).padStart(2, '0')}`
   const prof = persons.find((p) => p.id === professorId)!
   const rows = transactions.filter((t) => t.professorId === professorId && monthOf(t.txDate) === prefix)
-  const salaryRows = rows.map((t) => ({ date: t.txDate, service: t.serviceRaw, client: persons.find((p) => p.id === t.clientId)?.fullName ?? null, salary: t.professorSalary ?? 0 }))
+  const salaryRows = rows.map((t) => ({ date: t.txDate, service: t.serviceRaw, client: persons.find((p) => p.id === t.clientId)?.fullName ?? null, hours: t.endMin != null && t.startMin != null ? (t.endMin - t.startMin) / 60 : null, salary: t.professorSalary ?? 0 }))
   const gross = salaryRows.reduce((a, b) => a + b.salary, 0)
   return { professorId, professorName: prof.fullName, year, month, salaryRows, outcomeRows: [], result: { gross, barDiscount: 0, expenses: 0, installments: 0, net: gross }, savedStatus: settlementStatus.get(`${professorId}-${prefix}`) ?? null }
 }

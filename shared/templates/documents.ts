@@ -9,7 +9,7 @@ export interface SettlementPreview {
   professorName: string
   year: number
   month: number
-  salaryRows: { date: string; service: string | null; client: string | null; salary: number }[]
+  salaryRows: { date: string; service: string | null; client: string | null; hours: number | null; salary: number }[]
   /** Gastos de Outcome a nombre del profesor (informativos; NO se descuentan por defecto). */
   outcomeRows: { date: string; supply: string | null; amount: number; comment: string | null }[]
   result: ProfessorPayrollResult
@@ -87,21 +87,24 @@ export function clientBillHtml(bill: ClientBill, client: Person, company: Compan
 }
 
 export function settlementHtml(p: SettlementPreview, company: CompanyConfig): string {
+  const fmtHours = (h: number | null) => (h == null ? '—' : (Math.round(h * 100) / 100).toLocaleString('es-CO'))
+  const totalHours = p.salaryRows.reduce((a, r) => a + (r.hours ?? 0), 0)
   const rows = p.salaryRows
     .map(
       (r) =>
-        `<tr><td>${r.date}</td><td>${escape(r.service ?? '')}</td><td>${escape(r.client ?? '')}</td><td class="num">${money(
-          r.salary
-        )}</td></tr>`
+        `<tr><td>${r.date}</td><td>${escape(r.service ?? '')}</td><td>${escape(r.client ?? '')}</td><td class="num">${fmtHours(
+          r.hours
+        )}</td><td class="num">${money(r.salary)}</td></tr>`
     )
     .join('')
   const months = ['', 'enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre']
   return `<!doctype html><html lang="es"><head><meta charset="utf-8"><style>${BASE_CSS}</style></head><body>
     ${header(company, 'LIQUIDACIÓN', `${months[p.month]} ${p.year}`)}
     <div style="margin-top:16px"><strong>Profesor:</strong> ${escape(p.professorName)}</div>
-    <table><thead><tr><th>Fecha</th><th>Servicio</th><th>Cliente</th><th class="num">Salario</th></tr></thead>
-    <tbody>${rows || '<tr><td colspan="4" class="muted">Sin clases en el periodo</td></tr>'}</tbody></table>
+    <table><thead><tr><th>Fecha</th><th>Servicio</th><th>Cliente</th><th class="num">Horas</th><th class="num">Salario</th></tr></thead>
+    <tbody>${rows || '<tr><td colspan="5" class="muted">Sin clases en el periodo</td></tr>'}</tbody></table>
     <table class="totals">
+      <tr><td>Horas dictadas</td><td class="num">${fmtHours(totalHours)}</td></tr>
       <tr><td>Bruto (salarios)</td><td class="num">${money(p.result.gross)}</td></tr>
       <tr><td>Descuento bar</td><td class="num">− ${money(p.result.barDiscount)}</td></tr>
       <tr class="grand"><td>Neto a pagar</td><td class="num">${money(p.result.net)}</td></tr>

@@ -661,7 +661,7 @@ async function previewSettlement(professorId: number, year: number, month: numbe
 
   const [txs, svcNames, barSalesRows, expenseRows, saved] = await Promise.all([
     sb.selectAll<any>('transactions', {
-      select: 'tx_date,professor_salary,client_id,resolved_service_id,service_id',
+      select: 'tx_date,professor_salary,client_id,resolved_service_id,service_id,duration_min',
       filters: [sb.eq('professor_id', professorId), sb.gte('tx_date', from), sb.lte('tx_date', to)],
       order: 'tx_date.asc,id.asc'
     }),
@@ -685,6 +685,7 @@ async function previewSettlement(professorId: number, year: number, month: numbe
     date: t.tx_date,
     service: svcNames.get(t.resolved_service_id ?? t.service_id) ?? null,
     client: t.client_id != null ? clientNames.get(t.client_id) ?? null : null,
+    hours: t.duration_min != null ? t.duration_min / 60 : null,
     salary: t.professor_salary ?? 0
   }))
   const barConsumo = barSalesRows.reduce((a: number, b: any) => a + (b.total ?? 0), 0)

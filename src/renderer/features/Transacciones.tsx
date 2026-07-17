@@ -384,10 +384,13 @@ export function Transacciones() {
         />
       )}
 
-      {/* Alta de clase con contador — solo personas ACTIVAS (los inactivos no dan más clases) */}
+      {/* Alta de clase: clientes activos primero y los inactivos marcados (un cliente que
+          vuelve a la escuela debe poder tomar clase); profesores solo ACTIVOS. */}
       {addingClass && (
         <NuevaClaseModal
-          clients={clients.filter((c) => c.stillHere !== false).map((c) => ({ id: c.id, label: c.fullName }))}
+          clients={[...clients]
+            .sort((a, b) => Number(b.stillHere !== false) - Number(a.stillHere !== false))
+            .map((c) => ({ id: c.id, label: c.stillHere === false ? `${c.fullName} (inactivo)` : c.fullName }))}
           professors={professors.filter((p) => p.stillHere !== false).map((p) => ({ id: p.id, label: p.nickname || p.fullName, email: p.email ?? null }))}
           serviceOpts={serviceOpts}
           services={(services.data ?? []).map((s) => ({ id: s.id, name: s.name, hours: s.hours ?? null }))}

@@ -20,7 +20,8 @@ export function previewSettlement(professorId: number, year: number, month: numb
   const salaryRows = (
     db
       .prepare(
-        `SELECT t.tx_date date, s.name service, c.full_name client, t.professor_salary salary
+        `SELECT t.tx_date date, s.name service, c.full_name client, t.professor_salary salary,
+                CASE WHEN t.end_min IS NOT NULL AND t.start_min IS NOT NULL THEN t.end_min - t.start_min END dur
          FROM transactions t
          LEFT JOIN service_catalog s ON s.id=COALESCE(t.resolved_service_id, t.service_id)
          LEFT JOIN persons c ON c.id=t.client_id
@@ -28,7 +29,7 @@ export function previewSettlement(professorId: number, year: number, month: numb
          ORDER BY t.tx_date`
       )
       .all(professorId, prefix) as any[]
-  ).map((r) => ({ date: r.date, service: r.service, client: r.client, salary: r.salary ?? 0 }))
+  ).map((r) => ({ date: r.date, service: r.service, client: r.client, hours: r.dur != null ? r.dur / 60 : null, salary: r.salary ?? 0 }))
 
   const barConsumo =
     (db.prepare("SELECT IFNULL(SUM(total),0) v FROM bar_sales WHERE client_id=? AND substr(sale_date,1,7)=?").get(professorId, prefix) as { v: number }).v

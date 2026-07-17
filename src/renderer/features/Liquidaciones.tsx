@@ -6,6 +6,12 @@ import type { SettlementPayment } from '@shared/types/domain'
 
 const now = new Date()
 
+/** Horas con hasta 2 decimales (ej. "1,5"); '—' si la clase sigue abierta. */
+function fmtHoras(h: number | null | undefined): string {
+  if (h == null) return '—'
+  return (Math.round(h * 100) / 100).toLocaleString('es-CO')
+}
+
 export function Liquidaciones() {
   const professors = useAsync(() => api.persons.list({ role: 'professor', limit: 2000 }), [])
   const [professorId, setProfessorId] = useState<number | null>(null)
@@ -163,16 +169,17 @@ export function Liquidaciones() {
             {preview.savedStatus === 'paid' && <span className="badge ok">PAGADO</span>}
           </h3>
           <table className="data">
-            <thead><tr><th>Fecha</th><th>Servicio</th><th>Cliente</th><th className="num">Salario</th></tr></thead>
+            <thead><tr><th>Fecha</th><th>Servicio</th><th>Cliente</th><th className="num">Horas</th><th className="num">Salario</th></tr></thead>
             <tbody>
               {preview.salaryRows.map((r: any, i: number) => (
-                <tr key={i}><td>{r.date}</td><td>{r.service}</td><td>{r.client}</td><td className="num">{formatCOP(r.salary)}</td></tr>
+                <tr key={i}><td>{r.date}</td><td>{r.service}</td><td>{r.client}</td><td className="num">{fmtHoras(r.hours)}</td><td className="num">{formatCOP(r.salary)}</td></tr>
               ))}
-              {!preview.salaryRows.length && <tr><td colSpan={4} className="muted">Sin clases en el periodo.</td></tr>}
+              {!preview.salaryRows.length && <tr><td colSpan={5} className="muted">Sin clases en el periodo.</td></tr>}
             </tbody>
           </table>
           <table className="data" style={{ marginTop: 12, maxWidth: 360, marginLeft: 'auto' }}>
             <tbody>
+              <tr><td>Horas dictadas</td><td className="num">{fmtHoras(preview.salaryRows.reduce((a: number, r: any) => a + (r.hours ?? 0), 0))}</td></tr>
               <tr><td>Bruto</td><td className="num">{formatCOP(preview.result.gross)}</td></tr>
               <tr><td>Descuento bar</td><td className="num">− {formatCOP(preview.result.barDiscount)}</td></tr>
               <tr><td><strong>Neto a pagar</strong></td><td className="num"><strong>{formatCOP(preview.result.net)}</strong></td></tr>
