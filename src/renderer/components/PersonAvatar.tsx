@@ -20,7 +20,7 @@ export function PersonAvatar({
   useEffect(() => {
     let alive = true
     if (person.photoThumbPath || person.photoPath) {
-      api.persons.photoDataUrl(person.id).then((d) => alive && setPhoto(d))
+      api.persons.photoDataUrl(person.id).then((d) => alive && setPhoto(d)).catch(() => {})
     } else {
       setPhoto(null)
     }

@@ -3,9 +3,10 @@ import { api, formatCOP, useAsync } from '../lib/api'
 import { Stat, Spinner } from '../components/ui'
 
 export function Dashboard() {
-  const { data, loading } = useAsync(() => api.finance.dashboard(), [])
+  const { data, loading, error } = useAsync(() => api.finance.dashboard(), [])
   const yb = useAsync(() => api.finance.yearBalance(), [])
 
+  if (error) return <div className="err">Error: {error}</div>
   if (loading || !data) return <Spinner />
   return (
     <div>

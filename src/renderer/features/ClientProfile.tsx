@@ -34,22 +34,30 @@ export function ClientProfile({ personId, onClose }: { personId: number; onClose
   const clientName = (id: number | null) => people.data?.find((p) => p.id === id)?.fullName ?? '—'
 
   useEffect(() => {
-    if (person?.photoThumbPath || person?.photoPath) api.persons.photoDataUrl(personId).then(setPhoto)
+    if (person?.photoThumbPath || person?.photoPath) api.persons.photoDataUrl(personId).then(setPhoto).catch(() => {})
   }, [person, personId])
 
   async function onPhoto(e: React.ChangeEvent<HTMLInputElement>) {
     const f = e.target.files?.[0]
     if (!f) return
     const b64 = bytesToBase64(new Uint8Array(await f.arrayBuffer()))
-    setPhoto(`data:${f.type || 'image/jpeg'};base64,` + b64)
-    await api.persons.setPhoto(personId, b64)
+    try {
+      await api.persons.setPhoto(personId, b64)
+      setPhoto(`data:${f.type || 'image/jpeg'};base64,` + b64)
+    } catch (e2: any) {
+      alert('No se pudo guardar la foto: ' + (e2?.message ?? e2))
+    }
   }
 
   /** Foto tomada con la cámara del dispositivo. */
   async function onCameraShot(dataUrl: string) {
     setCamera(false)
-    setPhoto(dataUrl)
-    await api.persons.setPhoto(personId, dataUrl.replace(/^data:image\/\w+;base64,/, ''))
+    try {
+      await api.persons.setPhoto(personId, dataUrl.replace(/^data:image\/\w+;base64,/, ''))
+      setPhoto(dataUrl)
+    } catch (e: any) {
+      alert('No se pudo guardar la foto: ' + (e?.message ?? e))
+    }
   }
 
   const rows = txs.data ?? []

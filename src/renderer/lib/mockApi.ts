@@ -7,6 +7,8 @@
 import type { AppApi } from '@shared/types/api'
 import type { Person } from '@shared/types/domain'
 import { todayISO } from '@shared/services/dates'
+import { lodgingDaysFromStay } from '@shared/services/billing'
+import { computeProfessorPayroll } from '@shared/services/payroll'
 import * as sample from './sampleData'
 
 const persons: Person[] = sample.persons.map((p) => ({ ...p }))
@@ -21,6 +23,7 @@ const savedBills: any[] = [] // facturas guardadas en la sesión demo (para mark
 const settlementPayments: any[] = [] // abonos de liquidación de la sesión demo
 const photos = new Map<number, string>() // fotos de perfil (base64) de la sesión demo
 const settlementStatus = new Map<string, 'issued' | 'paid'>() // estado de liquidaciones (profId-YYYY-MM)
+let barDiscountPct = 0 // % de descuento del bar en liquidaciones (ajustable en la sesión demo)
 
 // Google Forms simulado (la sincronización real es de la app instalada)
 const demoForms = [
@@ -110,7 +113,13 @@ export const mockApi: AppApi = {
       if (filter?.onlyActive) r = r.filter((p) => p.stillHere)
       if (filter?.search) {
         const q = filter.search.toLowerCase()
-        r = r.filter((p) => p.fullName.toLowerCase().includes(q) || (p.email ?? '').toLowerCase().includes(q))
+        // Paridad con escritorio/web: nombre, apodo, email y pasaporte
+        r = r.filter((p) =>
+          p.fullName.toLowerCase().includes(q) ||
+          (p.nickname ?? '').toLowerCase().includes(q) ||
+          (p.email ?? '').toLowerCase().includes(q) ||
+          (p.passport ?? '').toLowerCase().includes(q)
+        )
       }
       // último registro primero (paridad con escritorio y web)
       return r.map((p) => ({ ...p })).sort((a, b) => b.id - a.id)
@@ -153,7 +162,7 @@ export const mockApi: AppApi = {
     photoDataUrl: async (id) => (photos.has(id) ? 'data:image/jpeg;base64,' + photos.get(id) : null)
   },
   catalog: {
-    listServices: async () => services.map((s) => ({ ...s })),
+    listServices: async (onlyActive) => services.filter((s) => !onlyActive || s.active).map((s) => ({ ...s })),
     createService: async (s) => {
       const item = { ...(s as any), id: ++nextId }
       services.push(item)
@@ -164,7 +173,7 @@ export const mockApi: AppApi = {
       if (i >= 0) services[i] = { ...(s as any), id }
       return services[i]
     },
-    listEquipment: async () => equipment.map((e) => ({ ...e })),
+    listEquipment: async (onlyActive) => equipment.filter((e) => !onlyActive || e.active).map((e) => ({ ...e })),
     createEquipment: async (e) => {
       const item = { ...(e as any), id: ++nextId }
       equipment.push(item)
@@ -183,7 +192,10 @@ export const mockApi: AppApi = {
       if (filter?.professorId) r = r.filter((t) => t.professorId === filter.professorId)
       if (filter?.from) r = r.filter((t) => t.txDate >= filter.from!)
       if (filter?.to) r = r.filter((t) => t.txDate <= filter.to!)
-      return r.map((t) => ({ ...t })).sort((a, b) => b.txDate.localeCompare(a.txDate))
+      const sorted = r.map((t) => ({ ...t })).sort((a, b) => b.txDate.localeCompare(a.txDate))
+      // Paridad con ORDER BY … LIMIT OFFSET
+      const start = filter?.offset ?? 0
+      return sorted.slice(start, filter?.limit != null ? start + filter.limit : undefined)
     },
     preview: async (input: any) => computeTx(input),
     create: async (input: any) => {
@@ -252,10 +264,18 @@ export const mockApi: AppApi = {
       barSales.push(s)
       return s
     },
-    listSales: async () => barSales.map((s) => ({ ...s })).sort((a, b) => b.saleDate.localeCompare(a.saleDate))
+    listSales: async (from, to) =>
+      barSales
+        .filter((s) => (!from || s.saleDate >= from) && (!to || s.saleDate <= to))
+        .map((s) => ({ ...s }))
+        .sort((a, b) => b.saleDate.localeCompare(a.saleDate))
   },
   expenses: {
-    list: async () => expenses.map((e) => ({ ...e })).sort((a, b) => b.expenseDate.localeCompare(a.expenseDate)),
+    list: async (from, to) =>
+      expenses
+        .filter((e) => (!from || e.expenseDate >= from) && (!to || e.expenseDate <= to))
+        .map((e) => ({ ...e }))
+        .sort((a, b) => b.expenseDate.localeCompare(a.expenseDate)),
     create: async (input: any) => {
       const e = { id: ++nextId, expenseDate: input.expenseDate, supplyName: input.supplyName ?? null, count: input.count ?? 1, areaName: input.areaName ?? null, areaPersonId: input.areaPersonId ?? null, supplierId: input.supplierId ?? null, supplierRaw: null, amountOut: roundCOP(input.amountOut || 0), comment: input.comment ?? null }
       expenses.push(e)
@@ -276,7 +296,7 @@ export const mockApi: AppApi = {
     preview: async (clientId, opts = {}) => buildBill(clientId, opts),
     save: async (clientId, opts = {}) => {
       const b = buildBill(clientId, opts)
-      const bill = { id: ++nextId, clientId, billDate: opts.billDate ?? todayISO(), lodgingDays: 0, lodgingRate: 0, discountPct: opts.discountPct ?? 0, deductions: opts.deduction ?? 0, alreadyPaid: b.result.alreadyPaid, cardSurcharge: !!opts.cardSurcharge, subtotal: b.result.subtotal, total: b.result.total, netToPay: b.result.netToPay, status: 'issued' as const, pdfPath: null, emailedAt: null, notes: null, items: b.items }
+      const bill = { id: ++nextId, clientId, billDate: opts.billDate ?? todayISO(), lodgingDays: b.options.lodgingDays ?? 0, lodgingRate: opts.lodgingRate ?? 0, discountPct: opts.discountPct ?? 0, deductions: opts.deduction ?? 0, alreadyPaid: b.result.alreadyPaid, cardSurcharge: !!opts.cardSurcharge, subtotal: b.result.subtotal, total: b.result.total, netToPay: b.result.netToPay, status: 'issued' as const, pdfPath: null, emailedAt: null, notes: null, items: b.items }
       savedBills.push(bill as any)
       return bill as any
     },
@@ -423,8 +443,8 @@ export const mockApi: AppApi = {
     getSmtp: async () => ({ host: '', port: 587, user: '', from: '', hasPassword: false }),
     setSmtp: async () => undefined,
     testSmtp: async () => ({ ok: false, error: 'Disponible en la app instalada.' }),
-    setBarDiscount: async () => undefined,
-    getBarDiscount: async () => 0
+    setBarDiscount: async (pct) => { barDiscountPct = pct },
+    getBarDiscount: async () => barDiscountPct
   },
   forms: {
     list: async () => demoForms.map((f) => ({ ...f })),
@@ -636,12 +656,14 @@ function buildBill(clientId: number, opts: any) {
   const sumServices = txs.reduce((a, b) => a + (b.priceEffective ?? 0), 0)
   const subtotal = sumServices === 0 ? 0 : roundCOP((sumServices * (100 - (opts.discountPct || 0))) / 100 - (opts.deduction || 0))
   const barTotal = sales.reduce((a, b) => a + b.total, 0)
-  const lodging = roundCOP((opts.lodgingDays || 0) * (opts.lodgingRate || 0))
+  // Días de hospedaje: si no vienen en opts, se derivan de la estadía (paridad con escritorio/web).
+  const lodgingDays = opts.lodgingDays != null ? opts.lodgingDays : lodgingDaysFromStay(client.checkIn ?? null, client.checkOut ?? null)
+  const lodging = roundCOP((lodgingDays || 0) * (opts.lodgingRate || 0))
   const total = subtotal + lodging + barTotal
   const alreadyPaid = opts.alreadyPaid ?? client.paid ?? 0
   const netToPay = total - alreadyPaid
   const cardTotal = opts.cardSurcharge ? roundCOP(netToPay * 1.05) : netToPay
-  return { clientId, clientName: client.fullName, items, result: { sumServices, subtotal, lodging, barTotal, total, alreadyPaid, netToPay, cardTotal }, options: opts }
+  return { clientId, clientName: client.fullName, items, result: { sumServices, subtotal, lodging, barTotal, total, alreadyPaid, netToPay, cardTotal }, options: { ...opts, lodgingDays } }
 }
 /** La liquidación queda PAGADA si los abonos cubren el neto; si no, 'issued'. */
 function recomputeSettlementStatus(professorId: number, year: number, month: number) {
@@ -658,6 +680,15 @@ function buildSettlement(professorId: number, year: number, month: number) {
   const prof = persons.find((p) => p.id === professorId)!
   const rows = transactions.filter((t) => t.professorId === professorId && monthOf(t.txDate) === prefix)
   const salaryRows = rows.map((t) => ({ date: t.txDate, service: t.serviceRaw, client: persons.find((p) => p.id === t.clientId)?.fullName ?? null, hours: t.endMin != null && t.startMin != null ? (t.endMin - t.startMin) / 60 : null, salary: t.professorSalary ?? 0 }))
-  const gross = salaryRows.reduce((a, b) => a + b.salary, 0)
-  return { professorId, professorName: prof.fullName, year, month, salaryRows, outcomeRows: [], result: { gross, barDiscount: 0, expenses: 0, installments: 0, net: gross }, savedStatus: settlementStatus.get(`${professorId}-${prefix}`) ?? null }
+  // Consumo del profesor en el bar en el mes: se descuenta con el % configurado (paridad con la app real)
+  const barConsumo = barSales
+    .filter((s) => s.clientId === professorId && monthOf(s.saleDate) === prefix)
+    .reduce((a, s) => a + s.total, 0)
+  const result = computeProfessorPayroll({
+    salaries: salaryRows.map((r) => r.salary),
+    barConsumo,
+    barDiscountPct,
+    assignedExpenses: []
+  })
+  return { professorId, professorName: prof.fullName, year, month, salaryRows, outcomeRows: [], result, savedStatus: settlementStatus.get(`${professorId}-${prefix}`) ?? null }
 }

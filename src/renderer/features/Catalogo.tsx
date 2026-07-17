@@ -191,14 +191,20 @@ function EquipmentForm({ item, onClose, onSaved }: { item: Equipment | null; onC
 function ServiceForm({ item, onClose, onSaved }: { item: ServiceCatalogItem | null; onClose: () => void; onSaved: () => void }) {
   const [form, setForm] = useState<Omit<ServiceCatalogItem, 'id'>>(item ? { ...item } : EMPTY)
   const [busy, setBusy] = useState(false)
+  const [err, setErr] = useState<string | null>(null)
   const set = (p: Partial<Omit<ServiceCatalogItem, 'id'>>) => setForm((f) => ({ ...f, ...p }))
 
   async function save() {
+    setErr(null)
+    if (!form.name.trim()) return setErr('Escribe el nombre del servicio.')
     setBusy(true)
     try {
-      if (item) await api.catalog.updateService(item.id, form)
-      else await api.catalog.createService(form)
+      const payload = { ...form, name: form.name.trim() }
+      if (item) await api.catalog.updateService(item.id, payload)
+      else await api.catalog.createService(payload)
       onSaved()
+    } catch (e: any) {
+      setErr(e?.message ?? 'Error')
     } finally {
       setBusy(false)
     }
@@ -243,6 +249,7 @@ function ServiceForm({ item, onClose, onSaved }: { item: ServiceCatalogItem | nu
           </select>
         </Field>
       </div>
+      {err && <div className="err">{err}</div>}
     </Modal>
   )
 }

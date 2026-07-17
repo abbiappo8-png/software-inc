@@ -22,17 +22,18 @@ export function Finanzas() {
 }
 
 function BalanceTab() {
-  const { data, loading } = useAsync(() => api.finance.dailyCashflow(), [])
+  const { data, loading, error } = useAsync(() => api.finance.dailyCashflow(), [])
   const [err, setErr] = useState<string | null>(null)
   async function exportXlsx() {
     setErr(null)
     try {
       const path = await api.exports.balance()
-      alert('Excel generado en:\n' + path)
+      if (path) alert('Excel generado en:\n' + path)
     } catch (e: any) {
       setErr('Error: ' + (e?.message ?? e))
     }
   }
+  if (error) return <div className="err">Error: {error}</div>
   if (loading || !data) return <Spinner />
   const rows = data.rows.slice(-120).reverse()
   return (
@@ -69,13 +70,13 @@ function BalanceTab() {
 function MonthTab() {
   const [year, setYear] = useState(now.getFullYear())
   const [month, setMonth] = useState(now.getMonth() + 1)
-  const { data, loading, reload } = useAsync(() => api.finance.monthSummary(year, month), [year, month])
+  const { data, loading, error, reload } = useAsync(() => api.finance.monthSummary(year, month), [year, month])
   const [err, setErr] = useState<string | null>(null)
   async function exportXlsx() {
     setErr(null)
     try {
       const path = await api.exports.monthSummary(year, month)
-      alert('Excel generado en:\n' + path)
+      if (path) alert('Excel generado en:\n' + path)
     } catch (e: any) {
       setErr('Error: ' + (e?.message ?? e))
     }
@@ -92,7 +93,7 @@ function MonthTab() {
         <button className="btn" onClick={exportXlsx}>Exportar a Excel</button>
       </div>
       {err && <div className="err" style={{ marginBottom: 12 }}>{err}</div>}
-      {loading || !data ? <Spinner /> : (
+      {error ? <div className="err">Error: {error}</div> : loading || !data ? <Spinner /> : (
         <div className="grid" style={{ gridTemplateColumns: '1fr 1fr' }}>
           <table className="data">
             <tbody>
@@ -117,7 +118,8 @@ function MonthTab() {
 }
 
 function AgesTab() {
-  const { data, loading } = useAsync(() => api.finance.ageStats(), [])
+  const { data, loading, error } = useAsync(() => api.finance.ageStats(), [])
+  if (error) return <div className="err">Error: {error}</div>
   if (loading || !data) return <Spinner />
   const max = Math.max(1, ...data.map((d) => d.count))
   return (

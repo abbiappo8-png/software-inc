@@ -1107,7 +1107,7 @@ function cachePhoto(id: number, url: string | null): void {
 
 export const supabaseApi: AppApi = {
   auth: {
-    status: async () => ({ hasPin: true, needsImport: false, schemaVersion: 4, userDataPath: 'Supabase (nube)' }),
+    status: async () => ({ hasPin: true, needsImport: false, schemaVersion: 5, userDataPath: 'Supabase (nube)' }),
     hasPin: async () => true,
     setPin: async () => {
       throw new Error('En la versión web la contraseña se gestiona en Supabase. Usa "Cambiar PIN" con la contraseña actual.')

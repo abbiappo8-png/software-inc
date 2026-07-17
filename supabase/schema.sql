@@ -2,7 +2,7 @@
 -- Esquema Postgres para Supabase — Kite Addict Colombia (versión web)
 --
 -- QUÉ ES: el equivalente exacto del esquema SQLite de la app de escritorio
--- (migraciones 001–004 ya aplicadas), portado a Postgres.
+-- (migraciones 001–005 ya aplicadas), portado a Postgres.
 --
 -- CÓMO USARLO: en tu proyecto de Supabase abre "SQL Editor", pega TODO este
 -- archivo y pulsa RUN. Es idempotente: puedes ejecutarlo dos veces sin romper.

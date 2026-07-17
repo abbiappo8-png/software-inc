@@ -28,10 +28,10 @@ export function Facturacion() {
       setBusy(false)
     }
   }
-  async function refresh() {
+  async function refresh(o: typeof opts = opts) {
     if (!clientId) return
     try {
-      setPreview(await api.bills.preview(clientId, opts))
+      setPreview(await api.bills.preview(clientId, o))
     } catch (e: any) {
       setMsg('Error: ' + (e?.message ?? e))
     }
@@ -96,15 +96,15 @@ export function Facturacion() {
             />
           </Field>
           <div className="row2">
-            <Field label="Descuento factura (%)"><input type="number" value={opts.discountPct} onChange={(e) => setOpts({ ...opts, discountPct: Number(e.target.value) })} onBlur={refresh} /></Field>
-            <Field label="Deducción (COP)"><input type="number" value={opts.deduction} onChange={(e) => setOpts({ ...opts, deduction: Number(e.target.value) })} onBlur={refresh} /></Field>
+            <Field label="Descuento factura (%)"><input type="number" value={opts.discountPct} onChange={(e) => setOpts({ ...opts, discountPct: Number(e.target.value) })} onBlur={() => refresh()} /></Field>
+            <Field label="Deducción (COP)"><input type="number" value={opts.deduction} onChange={(e) => setOpts({ ...opts, deduction: Number(e.target.value) })} onBlur={() => refresh()} /></Field>
           </div>
-          <Field label="Tarifa hospedaje / día (COP)"><input type="number" value={opts.lodgingRate} onChange={(e) => setOpts({ ...opts, lodgingRate: Number(e.target.value) })} onBlur={refresh} /></Field>
-          <label><input type="checkbox" style={{ width: 'auto' }} checked={opts.cardSurcharge} onChange={(e) => { setOpts({ ...opts, cardSurcharge: e.target.checked }) }} onBlur={refresh} /> Pago con tarjeta (+5%)</label>
+          <Field label="Tarifa hospedaje / día (COP)"><input type="number" value={opts.lodgingRate} onChange={(e) => setOpts({ ...opts, lodgingRate: Number(e.target.value) })} onBlur={() => refresh()} /></Field>
+          <label><input type="checkbox" style={{ width: 'auto' }} checked={opts.cardSurcharge} onChange={(e) => { const next = { ...opts, cardSurcharge: e.target.checked }; setOpts(next); refresh(next) }} /> Pago con tarjeta (+5%)</label>
 
           {!done ? (
             <div style={{ marginTop: 16, display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-              <button className="btn" onClick={refresh} disabled={!clientId || busy}>Recalcular</button>
+              <button className="btn" onClick={() => refresh()} disabled={!clientId || busy}>Recalcular</button>
               <button className="btn primary" onClick={cobrar} disabled={!clientId || busy} title="Crea la factura y registra el cobro: el saldo del cliente queda en $0">
                 Cobrar
               </button>

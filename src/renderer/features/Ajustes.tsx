@@ -9,7 +9,7 @@ export function Ajustes() {
       <div className="header"><h1>Ajustes</h1></div>
       <div className="grid" style={{ gridTemplateColumns: '1fr 1fr' }}>
         <CompanyPanel />
-        <SmtpPanel />
+        {IS_WEB ? <SmtpWebNote /> : <SmtpPanel />}
         <FormsPanel />
         <PinPanel />
         {IS_WEB ? <CloudPanel /> : <BackupPanel />}
@@ -32,8 +32,12 @@ function FormsPanel() {
 
   async function save() {
     if (!forms) return
-    await api.forms.saveConfig(forms)
-    setMsg('Guardado. Abre "Reservas Web" para sincronizar.')
+    try {
+      await api.forms.saveConfig(forms)
+      setMsg('Guardado. Abre "Reservas Web" para sincronizar.')
+    } catch (e: any) {
+      setMsg('Error: ' + (e?.message ?? e))
+    }
   }
 
   return (
@@ -62,7 +66,7 @@ function FormsPanel() {
         <button className="btn" onClick={add}>+ Añadir formulario</button>
         <button className="btn primary" onClick={save}>Guardar</button>
       </div>
-      <div className="ok" style={{ marginTop: 8 }}>{msg}</div>
+      <div className={msg.startsWith('Error') ? 'err' : 'ok'} style={{ marginTop: 8 }}>{msg}</div>
     </div>
   )
 }
@@ -74,8 +78,12 @@ function CompanyPanel() {
   React.useEffect(() => { if (data) setForm(data) }, [data])
   if (!form) return <div className="panel panel-p"><Spinner /></div>
   async function save() {
-    await api.settings.setCompany(form)
-    setMsg('Guardado.')
+    try {
+      await api.settings.setCompany(form)
+      setMsg('Guardado.')
+    } catch (e: any) {
+      setMsg('Error: ' + (e?.message ?? e))
+    }
   }
   return (
     <div className="panel panel-p">
@@ -83,7 +91,7 @@ function CompanyPanel() {
       <Field label="Nombre"><input value={form.companyName} onChange={(e) => setForm({ ...form, companyName: e.target.value })} /></Field>
       <Field label="NIT"><input value={form.companyNit} onChange={(e) => setForm({ ...form, companyNit: e.target.value })} /></Field>
       <Field label="Recargo tarjeta (0.05 = 5%)"><input type="number" step="0.01" value={form.cardSurchargePct} onChange={(e) => setForm({ ...form, cardSurchargePct: Number(e.target.value) })} /></Field>
-      <button className="btn primary" onClick={save}>Guardar</button> <span className="ok">{msg}</span>
+      <button className="btn primary" onClick={save}>Guardar</button> <span className={msg.startsWith('Error') ? 'err' : 'ok'}>{msg}</span>
     </div>
   )
 }
@@ -97,9 +105,13 @@ function SmtpPanel() {
   React.useEffect(() => { if (data) setForm(data) }, [data])
   if (!form) return <div className="panel panel-p"><Spinner /></div>
   async function save() {
-    await api.settings.setSmtp({ ...form, password: password || undefined })
-    setPassword('')
-    setMsg('Guardado.')
+    try {
+      await api.settings.setSmtp({ ...form, password: password || undefined })
+      setPassword('')
+      setMsg('Guardado.')
+    } catch (e: any) {
+      setMsg('Error: ' + (e?.message ?? e))
+    }
   }
   async function test() {
     setBusy(true)
@@ -107,6 +119,8 @@ function SmtpPanel() {
     try {
       const res = await api.settings.testSmtp()
       setMsg(res.ok ? 'Conexión SMTP correcta.' : 'Error: ' + res.error)
+    } catch (e: any) {
+      setMsg('Error: ' + (e?.message ?? e))
     } finally {
       setBusy(false)
     }
@@ -129,6 +143,16 @@ function SmtpPanel() {
       </div>
       <div style={{ marginTop: 8 }} className={msg.startsWith('Error') ? 'err' : 'ok'}>{msg}</div>
       <p className="muted" style={{ fontSize: 12 }}>Con Gmail usa una “contraseña de aplicación” (requiere verificación en 2 pasos). Puerto 587 (STARTTLS) o 465 (TLS).</p>
+    </div>
+  )
+}
+
+/* En la web no hay servidor SMTP disponible: se muestra una nota en vez del formulario. */
+function SmtpWebNote() {
+  return (
+    <div className="panel panel-p">
+      <h3 style={{ marginTop: 0 }}>Correo (SMTP) para enviar facturas</h3>
+      <p className="muted">El envío de correos solo funciona en la app de escritorio. Desde la web puedes generar el PDF de la factura y compartirlo manualmente.</p>
     </div>
   )
 }

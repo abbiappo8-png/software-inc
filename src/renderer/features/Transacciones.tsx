@@ -277,25 +277,42 @@ export function Transacciones() {
   }
 
   async function onCreate(draft: any) {
-    await api.transactions.create(toInput(draft))
-    reload()
+    try {
+      await api.transactions.create(toInput(draft))
+      reload()
+    } catch (e: any) {
+      alert(e?.message ?? 'Error al guardar')
+    }
   }
   async function onUpdate(id: number, patch: any) {
     const row = data?.find((t) => t.id === id)
     if (!row) return
     // Fila base con serviceSel derivado, luego aplica el parche de la celda.
     const base: any = { ...row, serviceSel: row.isClass ? CLASS : row.serviceId == null ? '' : String(row.serviceId) }
-    await api.transactions.update(id, toInput({ ...base, ...patch }))
-    reload()
+    try {
+      await api.transactions.update(id, toInput({ ...base, ...patch }))
+      reload()
+    } catch (e: any) {
+      alert(e?.message ?? 'Error al guardar')
+      reload()
+    }
   }
   async function onDelete(id: number) {
     if (!confirm('¿Eliminar esta transacción? Se quitará de la cuenta del cliente.')) return
-    await api.transactions.remove(id)
-    reload()
+    try {
+      await api.transactions.remove(id)
+      reload()
+    } catch (e: any) {
+      alert(e?.message ?? 'No se pudo eliminar')
+    }
   }
   async function salida(id: number) {
-    await api.transactions.checkout(id)
-    reload()
+    try {
+      await api.transactions.checkout(id)
+      reload()
+    } catch (e: any) {
+      alert(e?.message ?? 'Error al registrar la salida')
+    }
   }
   /** Terminar una clase en curso: detiene el contador y muestra el precio a pagar. */
   async function terminar(t: Transaction) {
@@ -310,8 +327,13 @@ export function Transacciones() {
   /** Cambiar la hora de inicio de una clase en curso (el contador se recalcula). */
   async function editarInicio(t: Transaction, startMin: number | null) {
     const base: any = { ...t, serviceSel: t.isClass ? CLASS : t.serviceId == null ? '' : String(t.serviceId) }
-    await api.transactions.update(t.id, toInput({ ...base, startMin }))
-    reload()
+    try {
+      await api.transactions.update(t.id, toInput({ ...base, startMin }))
+      reload()
+    } catch (e: any) {
+      alert(e?.message ?? 'Error al guardar')
+      reload()
+    }
   }
 
   const nameOf = (id: number | null) => persons.data?.find((p) => p.id === id)?.fullName ?? '—'

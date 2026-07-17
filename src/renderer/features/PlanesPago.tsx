@@ -44,18 +44,22 @@ export function PlanesPago() {
 function PlanForm({ persons, onClose, onSaved }: any) {
   const [form, setForm] = useState({ title: '', personId: '', principal: 0, startDate: todayISO() })
   const [busy, setBusy] = useState(false)
+  const [err, setErr] = useState<string | null>(null)
   const set = (p: any) => setForm((f) => ({ ...f, ...p }))
   async function save() {
+    setErr(null)
     setBusy(true)
     try {
-      await api.plans.create(form.title, form.personId ? Number(form.personId) : null, Number(form.principal), form.startDate)
+      await api.plans.create(form.title.trim(), form.personId ? Number(form.personId) : null, Number(form.principal), form.startDate)
       onSaved()
+    } catch (e: any) {
+      setErr(e?.message ?? 'Error')
     } finally {
       setBusy(false)
     }
   }
   return (
-    <Modal title="Nuevo plan de pago" onClose={onClose} footer={<><button className="btn" onClick={onClose}>Cancelar</button><button className="btn primary" onClick={save} disabled={busy}>{busy ? <Spinner /> : 'Crear'}</button></>}>
+    <Modal title="Nuevo plan de pago" onClose={onClose} footer={<><button className="btn" onClick={onClose}>Cancelar</button><button className="btn primary" onClick={save} disabled={busy || !form.title.trim()}>{busy ? <Spinner /> : 'Crear'}</button></>}>
       <Field label="Concepto (p.ej. cometa switch blade 10)"><input value={form.title} onChange={(e) => set({ title: e.target.value })} /></Field>
       <div className="row2">
         <Field label="Deudor">
@@ -66,6 +70,7 @@ function PlanForm({ persons, onClose, onSaved }: any) {
         </Field>
         <Field label="Saldo inicial (COP)"><input type="number" value={form.principal} onChange={(e) => set({ principal: Number(e.target.value) })} /></Field>
       </div>
+      {err && <div className="err">{err}</div>}
     </Modal>
   )
 }

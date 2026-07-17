@@ -112,7 +112,7 @@ export function Liquidaciones() {
     if (!professorId) return
     try {
       const path = await api.settlements.pdf(professorId, year, month)
-      setMsg('PDF generado: ' + path)
+      if (path) setMsg('PDF generado: ' + path)
     } catch (e: any) {
       // p. ej. pop-up bloqueado en la web: "permite las ventanas emergentes…"
       setMsg('Error: ' + (e?.message ?? e))
