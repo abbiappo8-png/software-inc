@@ -62,6 +62,5 @@ export function useAsync<T>(fn: () => Promise<T>, deps: unknown[] = []): {
   return { data, loading, error, reload: () => setTick((t) => t + 1) }
 }
 
-export function todayISO(): string {
-  return new Date().toISOString().slice(0, 10)
-}
+// Fecha de hoy en hora LOCAL (toISOString daba la fecha UTC: un día adelantada desde las 7 p. m.).
+export { todayISO } from '@shared/services/dates'

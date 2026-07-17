@@ -2,7 +2,7 @@
 import { getDb } from '../db/connection'
 import type { ClientBill, ClientBillItem } from '@shared/types/domain'
 import { computeClientBill, lodgingDaysFromStay } from '@shared/services/billing'
-import { minutesToHHMM } from '@shared/services/dates'
+import { minutesToHHMM, todayISO } from '@shared/services/dates'
 import { getCompanyConfig } from './settingsRepo'
 
 export interface BillOptions {
@@ -74,7 +74,7 @@ export function previewClientBill(clientId: number, opts: BillOptions = {}): Bil
     opts.lodgingDays != null ? opts.lodgingDays : lodgingDaysFromStay(client.check_in, client.check_out)
 
   const options: Required<BillOptions> = {
-    billDate: opts.billDate ?? new Date().toISOString().slice(0, 10),
+    billDate: opts.billDate ?? todayISO(),
     discountPct: opts.discountPct ?? 0,
     deduction: opts.deduction ?? 0,
     lodgingDays,

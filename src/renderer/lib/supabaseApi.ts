@@ -37,7 +37,7 @@ import { autoPrice, professorSalary as calcProfessorSalary } from '@shared/servi
 import { detectCourseForClient, type CourseLevel } from '@shared/services/courses'
 import { unitCost, saleTotal, canSell } from '@shared/services/bar'
 import { computeClientBill, lodgingDaysFromStay } from '@shared/services/billing'
-import { minutesToHHMM } from '@shared/services/dates'
+import { minutesToHHMM, todayISO } from '@shared/services/dates'
 import { computeProfessorPayroll } from '@shared/services/payroll'
 import { computeRunningBalance, totals as balanceTotals, type DayAggregate } from '@shared/services/balance'
 import { ageAt, ageHistogram } from '@shared/services/statistics'
@@ -48,10 +48,6 @@ import { clientBillHtml, settlementHtml, type SettlementPreview } from '@shared/
 
 const FILES_BUCKET = 'archivos'
 const PHOTOS_BUCKET = 'fotos'
-
-function todayISO(): string {
-  return new Date().toISOString().slice(0, 10)
-}
 
 /** Minutos desde medianoche de la hora local actual (entrada/salida "ahora"). */
 function nowMinutes(): number {

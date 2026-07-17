@@ -118,6 +118,15 @@ export function datedifDays(startISO: ISODate, endISO: ISODate): number {
   return Math.max(0, Math.round((b - a) / MS_PER_DAY))
 }
 
+/**
+ * Fecha de HOY en hora LOCAL como 'YYYY-MM-DD'. No usar toISOString().slice(0,10):
+ * devuelve la fecha en UTC, que en Colombia (UTC−5) ya es "mañana" desde las 7 p. m.
+ */
+export function todayISO(): ISODate {
+  const d = new Date()
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+}
+
 export function monthOf(iso: ISODate): number {
   return parseInt(iso.slice(5, 7), 10)
 }

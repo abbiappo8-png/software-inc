@@ -7,10 +7,7 @@ import { getDb } from '../db/connection'
 import type { DailyCashflowRow, MonthSummary, AgeBucket } from '@shared/types/domain'
 import { computeRunningBalance, totals, type DayAggregate } from '@shared/services/balance'
 import { ageAt, ageHistogram } from '@shared/services/statistics'
-
-function todayISO(): string {
-  return new Date().toISOString().slice(0, 10)
-}
+import { todayISO } from '@shared/services/dates'
 
 /** Balance diario (flujo de caja) con saldo acumulado. */
 export function dailyCashflow(from?: string, to?: string): { rows: DailyCashflowRow[]; totals: { in: number; out: number; net: number } } {

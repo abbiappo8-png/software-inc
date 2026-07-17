@@ -6,6 +6,7 @@
  */
 import type { AppApi } from '@shared/types/api'
 import type { Person } from '@shared/types/domain'
+import { todayISO } from '@shared/services/dates'
 import * as sample from './sampleData'
 
 const persons: Person[] = sample.persons.map((p) => ({ ...p }))
@@ -274,7 +275,7 @@ export const mockApi: AppApi = {
     preview: async (clientId, opts = {}) => buildBill(clientId, opts),
     save: async (clientId, opts = {}) => {
       const b = buildBill(clientId, opts)
-      const bill = { id: ++nextId, clientId, billDate: opts.billDate ?? new Date().toISOString().slice(0, 10), lodgingDays: 0, lodgingRate: 0, discountPct: opts.discountPct ?? 0, deductions: opts.deduction ?? 0, alreadyPaid: b.result.alreadyPaid, cardSurcharge: !!opts.cardSurcharge, subtotal: b.result.subtotal, total: b.result.total, netToPay: b.result.netToPay, status: 'issued' as const, pdfPath: null, emailedAt: null, notes: null, items: b.items }
+      const bill = { id: ++nextId, clientId, billDate: opts.billDate ?? todayISO(), lodgingDays: 0, lodgingRate: 0, discountPct: opts.discountPct ?? 0, deductions: opts.deduction ?? 0, alreadyPaid: b.result.alreadyPaid, cardSurcharge: !!opts.cardSurcharge, subtotal: b.result.subtotal, total: b.result.total, netToPay: b.result.netToPay, status: 'issued' as const, pdfPath: null, emailedAt: null, notes: null, items: b.items }
       savedBills.push(bill as any)
       return bill as any
     },
@@ -342,7 +343,7 @@ export const mockApi: AppApi = {
     },
     ageStats: async () => {
       const counts = new Map<number, number>()
-      const today = new Date().toISOString().slice(0, 10)
+      const today = todayISO()
       persons.forEach((p) => {
         if (!p.birthDate) return
         const years = (Date.parse(p.checkIn || today) - Date.parse(p.birthDate)) / (365 * 86400000)

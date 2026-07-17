@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react'
-import { api, useAsync, formatCOP, minutesToHHMM } from '../lib/api'
+import { api, useAsync, formatCOP, minutesToHHMM, todayISO } from '../lib/api'
 import { Modal, Spinner, Avatar, Empty } from '../components/ui'
 import { CameraCapture } from '../components/CameraCapture'
 
@@ -147,7 +147,7 @@ export function ClientProfile({ personId, onClose }: { personId: number; onClose
                         <td>{clientName(t.clientId)}</td>
                         <td>{t.isClass ? <span className="badge class">Clase</span> : ''} {svcName(t)}</td>
                         <td>{t.startMin != null ? minutesToHHMM(t.startMin) : '—'}{t.endMin != null ? `–${minutesToHHMM(t.endMin)}` : ''}</td>
-                        <td className="num">{t.isOpen ? <span className="badge open">{t.txDate === new Date().toISOString().slice(0, 10) ? 'En curso' : 'Agendada'}</span> : formatCOP(t.professorSalary)}</td>
+                        <td className="num">{t.isOpen ? <span className="badge open">{t.txDate === todayISO() ? 'En curso' : 'Agendada'}</span> : formatCOP(t.professorSalary)}</td>
                       </tr>
                     ))}
                   </tbody>
