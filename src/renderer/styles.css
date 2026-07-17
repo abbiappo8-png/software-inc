@@ -53,6 +53,8 @@ button { font: inherit; cursor: pointer; }
   border-radius: 9px; font-size: 13.5px; font-weight: 500; transition: background .15s, color .15s;
 }
 .sidebar a:hover { background: rgba(255,255,255,.06); color: #fff; }
+/* Icono de cada pestaña: ancho fijo para que los textos queden alineados */
+.sidebar a .nav-ico { flex: none; width: 20px; text-align: center; font-size: 15px; line-height: 1; }
 .sidebar a.active { background: var(--grad); color: #fff; box-shadow: 0 4px 16px rgba(248,0,64,.4); }
 .sidebar .spacer { flex: 1; }
 .sidebar .muted { color: #7c7c8c; }

@@ -24,19 +24,19 @@ import type { AppStatus } from '@shared/types/api'
 type Phase = 'loading' | 'setPin' | 'locked' | 'firstRun' | 'ready'
 
 const NAV = [
-  { to: '/', label: 'Panel', end: true },
-  { to: '/personas', label: 'Personas' },
-  { to: '/catalogo', label: 'Catálogo' },
-  { to: '/transacciones', label: 'Club' },
-  { to: '/calendario', label: 'Calendario' },
-  { to: '/bar', label: 'Bar' },
-  { to: '/gastos', label: 'Gastos' },
-  { to: '/reservas-web', label: 'Reservas Web' },
-  { to: '/facturacion', label: 'Facturación' },
-  { to: '/liquidaciones', label: 'Liquidaciones' },
-  { to: '/finanzas', label: 'Finanzas' },
-  { to: '/planes', label: 'Planes de pago' },
-  { to: '/ajustes', label: 'Ajustes' }
+  { to: '/', label: 'Panel', icon: '📊', end: true },
+  { to: '/personas', label: 'Personas', icon: '👥' },
+  { to: '/catalogo', label: 'Catálogo', icon: '🏷️' },
+  { to: '/transacciones', label: 'Club', icon: '🪁' },
+  { to: '/calendario', label: 'Calendario', icon: '📅' },
+  { to: '/bar', label: 'Bar', icon: '🍹' },
+  { to: '/gastos', label: 'Gastos', icon: '💸' },
+  { to: '/reservas-web', label: 'Reservas Web', icon: '🌐' },
+  { to: '/facturacion', label: 'Facturación', icon: '🧾' },
+  { to: '/liquidaciones', label: 'Liquidaciones', icon: '💰' },
+  { to: '/finanzas', label: 'Finanzas', icon: '📈' },
+  { to: '/planes', label: 'Planes de pago', icon: '💳' },
+  { to: '/ajustes', label: 'Ajustes', icon: '⚙️' }
 ]
 
 export default function App() {
@@ -96,11 +96,13 @@ export default function App() {
             className={({ isActive }) => (isActive ? 'active' : '')}
             onClick={() => setMenuOpen(false)}
           >
+            <span className="nav-ico">{n.icon}</span>
             {n.label}
           </NavLink>
         ))}
         <div className="spacer" />
         <NavLink to="/archivos" className={({ isActive }) => (isActive ? 'active' : '')} onClick={() => setMenuOpen(false)}>
+          <span className="nav-ico">📁</span>
           Archivos
         </NavLink>
         <div className="muted" style={{ fontSize: 11, padding: '8px 10px' }}>
