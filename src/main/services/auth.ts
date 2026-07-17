@@ -7,7 +7,9 @@ import { scryptSync, randomBytes, timingSafeEqual } from 'node:crypto'
 import type { Database as DB } from 'better-sqlite3'
 
 const KEYLEN = 64
-const SCRYPT = { N: 1 << 15, r: 8, p: 1 }
+// maxmem: scrypt con N=2^15, r=8 necesita justo 32 MiB — el tope por defecto del
+// runtime (BoringSSL) lo rechaza con MEMORY_LIMIT_EXCEEDED; se amplía sin cambiar el hash.
+const SCRYPT = { N: 1 << 15, r: 8, p: 1, maxmem: 64 * 1024 * 1024 }
 
 function getSetting(db: DB, key: string): string | null {
   const row = db.prepare('SELECT value FROM settings WHERE key=?').get(key) as { value: string } | undefined
