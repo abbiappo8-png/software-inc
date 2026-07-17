@@ -3,6 +3,7 @@ import { NavLink, Route, Routes, Navigate } from 'react-router-dom'
 import { api, IS_DEMO, IS_WEB } from './lib/api'
 import { Spinner } from './components/ui'
 import { Logo } from './components/Logo'
+import { NavIcon, type NavIconName } from './components/NavIcon'
 import { SetPinScreen, PinGate } from './features/Auth'
 import { FirstRun } from './features/FirstRun'
 import { Dashboard } from './features/Dashboard'
@@ -23,20 +24,20 @@ import type { AppStatus } from '@shared/types/api'
 
 type Phase = 'loading' | 'setPin' | 'locked' | 'firstRun' | 'ready'
 
-const NAV = [
-  { to: '/', label: 'Panel', icon: '📊', end: true },
-  { to: '/personas', label: 'Personas', icon: '👥' },
-  { to: '/catalogo', label: 'Catálogo', icon: '🏷️' },
-  { to: '/transacciones', label: 'Club', icon: '🪁' },
-  { to: '/calendario', label: 'Calendario', icon: '📅' },
-  { to: '/bar', label: 'Bar', icon: '🍹' },
-  { to: '/gastos', label: 'Gastos', icon: '💸' },
-  { to: '/reservas-web', label: 'Reservas Web', icon: '🌐' },
-  { to: '/facturacion', label: 'Facturación', icon: '🧾' },
-  { to: '/liquidaciones', label: 'Liquidaciones', icon: '💰' },
-  { to: '/finanzas', label: 'Finanzas', icon: '📈' },
-  { to: '/planes', label: 'Planes de pago', icon: '💳' },
-  { to: '/ajustes', label: 'Ajustes', icon: '⚙️' }
+const NAV: { to: string; label: string; icon: NavIconName; end?: boolean }[] = [
+  { to: '/', label: 'Panel', icon: 'dashboard', end: true },
+  { to: '/personas', label: 'Personas', icon: 'users' },
+  { to: '/catalogo', label: 'Catálogo', icon: 'tag' },
+  { to: '/transacciones', label: 'Club', icon: 'kite' },
+  { to: '/calendario', label: 'Calendario', icon: 'calendar' },
+  { to: '/bar', label: 'Bar', icon: 'cocktail' },
+  { to: '/gastos', label: 'Gastos', icon: 'banknote' },
+  { to: '/reservas-web', label: 'Reservas Web', icon: 'globe' },
+  { to: '/facturacion', label: 'Facturación', icon: 'receipt' },
+  { to: '/liquidaciones', label: 'Liquidaciones', icon: 'wallet' },
+  { to: '/finanzas', label: 'Finanzas', icon: 'chart' },
+  { to: '/planes', label: 'Planes de pago', icon: 'card' },
+  { to: '/ajustes', label: 'Ajustes', icon: 'gear' }
 ]
 
 export default function App() {
@@ -96,13 +97,13 @@ export default function App() {
             className={({ isActive }) => (isActive ? 'active' : '')}
             onClick={() => setMenuOpen(false)}
           >
-            <span className="nav-ico">{n.icon}</span>
+            <span className="nav-ico"><NavIcon name={n.icon} /></span>
             {n.label}
           </NavLink>
         ))}
         <div className="spacer" />
         <NavLink to="/archivos" className={({ isActive }) => (isActive ? 'active' : '')} onClick={() => setMenuOpen(false)}>
-          <span className="nav-ico">📁</span>
+          <span className="nav-ico"><NavIcon name="folder" /></span>
           Archivos
         </NavLink>
         <div className="muted" style={{ fontSize: 11, padding: '8px 10px' }}>
