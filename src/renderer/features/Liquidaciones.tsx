@@ -130,7 +130,13 @@ export function Liquidaciones() {
           <Field label="Profesor">
             <SearchSelect
               value={professorId == null ? '' : String(professorId)}
-              options={(professors.data ?? []).map((p) => ({ value: String(p.id), label: p.nickname || p.fullName }))}
+              // Activos primero; los inactivos al fondo y marcados (aún se liquidan sus meses pasados).
+              options={[...(professors.data ?? [])]
+                .sort((a, b) => Number(b.stillHere !== false) - Number(a.stillHere !== false))
+                .map((p) => ({
+                  value: String(p.id),
+                  label: (p.nickname || p.fullName) + (p.stillHere === false ? ' (inactivo)' : '')
+                }))}
               onChange={(v) => v && setProfessorId(Number(v))}
               placeholder="— Busca el profesor —"
             />

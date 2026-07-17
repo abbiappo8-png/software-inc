@@ -241,8 +241,11 @@ export function Transacciones() {
     { value: '', label: '—' },
     ...arr.map((x) => ({ value: String(x.id), label: x.label }))
   ]
-  const clientOpts = opt(clients.map((c) => ({ id: c.id, label: c.fullName })))
-  const profOpts = opt(professors.map((p) => ({ id: p.id, label: p.nickname || p.fullName })))
+  // Activos primero en los desplegables; los inactivos quedan al fondo.
+  const activosPrimero = <T extends { stillHere?: boolean }>(arr: T[]) =>
+    [...arr].sort((a, b) => Number(b.stillHere !== false) - Number(a.stillHere !== false))
+  const clientOpts = opt(activosPrimero(clients).map((c) => ({ id: c.id, label: c.fullName })))
+  const profOpts = opt(activosPrimero(professors).map((p) => ({ id: p.id, label: p.nickname || p.fullName })))
   const equipOpts = opt((equipment.data ?? []).map((e) => ({ id: e.id, label: e.name })))
   const serviceOpts = [
     { value: '', label: '—' },

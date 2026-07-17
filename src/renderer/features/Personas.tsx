@@ -204,7 +204,8 @@ export function Personas() {
       ) : (
         <EditableTable
           columns={columns}
-          rows={data ?? []}
+          // Activos primero (los inactivos al fondo); dentro de cada grupo, último registro primero.
+          rows={[...(data ?? [])].sort((a, b) => Number(b.stillHere !== false) - Number(a.stillHere !== false))}
           onUpdate={onUpdate}
           onDelete={onDelete}
         />
