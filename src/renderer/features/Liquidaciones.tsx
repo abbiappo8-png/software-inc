@@ -1,7 +1,8 @@
 import React, { useState } from 'react'
-import { api, useAsync, formatCOP } from '../lib/api'
+import { api, useAsync, formatCOP, todayISO } from '../lib/api'
 import { Field, Spinner } from '../components/ui'
 import { SearchSelect } from '../components/SearchSelect'
+import type { SettlementPayment } from '@shared/types/domain'
 
 const now = new Date()
 
@@ -11,6 +12,8 @@ export function Liquidaciones() {
   const [year, setYear] = useState(now.getFullYear())
   const [month, setMonth] = useState(now.getMonth() + 1)
   const [preview, setPreview] = useState<any>(null)
+  const [abonos, setAbonos] = useState<SettlementPayment[]>([])
+  const [ab, setAb] = useState({ date: todayISO(), amount: 0, comment: '' })
   const [busy, setBusy] = useState(false)
   const [msg, setMsg] = useState<string | null>(null)
 
@@ -19,7 +22,54 @@ export function Liquidaciones() {
     setBusy(true)
     setMsg(null)
     try {
-      setPreview(await api.settlements.preview(professorId, year, month))
+      const [p, pays] = await Promise.all([
+        api.settlements.preview(professorId, year, month),
+        api.settlements.listPayments(professorId, year, month)
+      ])
+      setPreview(p)
+      setAbonos(pays)
+    } catch (e: any) {
+      setMsg('Error: ' + (e?.message ?? e))
+    } finally {
+      setBusy(false)
+    }
+  }
+  /** Refresca vista previa + abonos (tras registrar/eliminar un abono o pagar). */
+  async function refreshAll() {
+    if (!professorId) return
+    const [p, pays] = await Promise.all([
+      api.settlements.preview(professorId, year, month),
+      api.settlements.listPayments(professorId, year, month)
+    ])
+    setPreview(p)
+    setAbonos(pays)
+  }
+  async function registrarAbono() {
+    if (!professorId || !(ab.amount > 0)) return
+    setBusy(true)
+    try {
+      await api.settlements.addPayment({
+        professorId, year, month,
+        payDate: ab.date || todayISO(),
+        amount: ab.amount,
+        comment: ab.comment.trim() || null
+      })
+      setAb({ date: todayISO(), amount: 0, comment: '' })
+      await refreshAll()
+      setMsg('✔ Abono registrado (también quedó en Gastos).')
+    } catch (e: any) {
+      setMsg('Error: ' + (e?.message ?? e))
+    } finally {
+      setBusy(false)
+    }
+  }
+  async function quitarAbono(id: number) {
+    if (!confirm('¿Eliminar este abono? También se elimina su gasto.')) return
+    setBusy(true)
+    try {
+      await api.settlements.removePayment(id)
+      await refreshAll()
+      setMsg('Abono eliminado.')
     } catch (e: any) {
       setMsg('Error: ' + (e?.message ?? e))
     } finally {
@@ -62,6 +112,9 @@ export function Liquidaciones() {
       setMsg('Error: ' + (e?.message ?? e))
     }
   }
+
+  const abonado = abonos.reduce((a, p) => a + p.amount, 0)
+  const saldo = Math.max(0, (preview?.result?.net ?? 0) - abonado)
 
   return (
     <div>
@@ -123,8 +176,65 @@ export function Liquidaciones() {
               <tr><td>Bruto</td><td className="num">{formatCOP(preview.result.gross)}</td></tr>
               <tr><td>Descuento bar</td><td className="num">− {formatCOP(preview.result.barDiscount)}</td></tr>
               <tr><td><strong>Neto a pagar</strong></td><td className="num"><strong>{formatCOP(preview.result.net)}</strong></td></tr>
+              {abonado > 0 && <tr><td>Abonado</td><td className="num">− {formatCOP(abonado)}</td></tr>}
+              {abonado > 0 && (
+                <tr>
+                  <td><strong>Saldo pendiente</strong></td>
+                  <td className="num"><strong>{saldo > 0 ? formatCOP(saldo) : '$ 0 ✔'}</strong></td>
+                </tr>
+              )}
             </tbody>
           </table>
+
+          <div style={{ marginTop: 16 }}>
+            <strong>Abonos al profesor</strong>
+            {abonos.length > 0 ? (
+              <table className="data" style={{ marginTop: 8 }}>
+                <thead><tr><th>Fecha</th><th>Comentario</th><th className="num">Monto</th><th /></tr></thead>
+                <tbody>
+                  {abonos.map((p) => (
+                    <tr key={p.id}>
+                      <td>{p.payDate}</td>
+                      <td className="muted">{p.comment ?? ''}</td>
+                      <td className="num">{formatCOP(p.amount)}</td>
+                      <td style={{ width: 40, textAlign: 'center' }}>
+                        <button className="btn ghost sm" title="Eliminar abono" onClick={() => quitarAbono(p.id)} disabled={busy}>🗑</button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            ) : (
+              <div className="muted" style={{ marginTop: 6, fontSize: 13 }}>Sin abonos registrados en este periodo.</div>
+            )}
+            {saldo > 0 && (
+              <div className="row3" style={{ alignItems: 'end', marginTop: 10 }}>
+                <Field label="Fecha del abono">
+                  <input type="date" value={ab.date} onChange={(e) => setAb({ ...ab, date: e.target.value })} />
+                </Field>
+                <Field label="Monto (COP)">
+                  <input type="number" min={0} value={ab.amount || ''} onChange={(e) => setAb({ ...ab, amount: Number(e.target.value) })} />
+                </Field>
+                <Field label="Comentario (opcional)">
+                  <input value={ab.comment} onChange={(e) => setAb({ ...ab, comment: e.target.value })} placeholder="ej. efectivo, Nequi…" />
+                </Field>
+              </div>
+            )}
+            {saldo > 0 && (
+              <button
+                className="btn primary"
+                style={{ marginTop: 8 }}
+                onClick={registrarAbono}
+                disabled={busy || !(ab.amount > 0)}
+                title="Registra un pago parcial; también queda como gasto del día"
+              >
+                💵 Registrar abono
+              </button>
+            )}
+            {saldo === 0 && abonado > 0 && (
+              <div className="ok" style={{ marginTop: 8, fontSize: 13 }}>Los abonos cubren el neto: la liquidación quedó PAGADA.</div>
+            )}
+          </div>
           {preview.outcomeRows?.length > 0 && (
             <div style={{ marginTop: 16 }}>
               <div className="muted" style={{ fontSize: 12, marginBottom: 6 }}>

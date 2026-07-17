@@ -65,6 +65,15 @@ const txInput = z.object({
   comment: z.string().nullable().optional()
 })
 
+const settlementPaymentInput = z.object({
+  professorId: z.number(),
+  year: z.number(),
+  month: z.number().min(1).max(12),
+  payDate: z.string().min(1),
+  amount: z.number().positive(),
+  comment: z.string().nullable().optional()
+})
+
 const equipmentInput = z.object({
   name: z.string().min(1),
   category: z.enum(['kite', 'board', 'efoil', 'sup', 'wing', 'wake', 'other']),
@@ -220,6 +229,13 @@ export function registerHandlers(getMainWindow: () => BrowserWindow | null): voi
     const html = settlementHtml(preview, settings.getCompanyConfig())
     return renderHtmlToPdf(html, `liquidacion-${professorId}-${year}-${month}.pdf`)
   })
+  ipcMain.handle('settlements:listPayments', (_e, professorId: number, year: number, month: number) =>
+    settlements.listPayments(Number(professorId), Number(year), Number(month))
+  )
+  ipcMain.handle('settlements:addPayment', (_e, input: unknown) =>
+    settlements.addPayment(settlementPaymentInput.parse(input))
+  )
+  ipcMain.handle('settlements:removePayment', (_e, id: number) => settlements.removePayment(Number(id)))
 
   // ---- finance ----
   ipcMain.handle('finance:dailyCashflow', (_e, from?: string, to?: string) => finance.dailyCashflow(from, to))

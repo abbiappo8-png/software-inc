@@ -18,6 +18,7 @@ const barSales = sample.barSales.map((s) => ({ ...s }))
 const expenses = sample.expenses.map((e) => ({ ...e }))
 const plans = sample.paymentPlans.map((p) => ({ ...p, installments: p.installments.map((i) => ({ ...i })) }))
 const savedBills: any[] = [] // facturas guardadas en la sesión demo (para markPaid)
+const settlementPayments: any[] = [] // abonos de liquidación de la sesión demo
 const photos = new Map<number, string>() // fotos de perfil (base64) de la sesión demo
 const settlementStatus = new Map<string, 'issued' | 'paid'>() // estado de liquidaciones (profId-YYYY-MM)
 
@@ -307,7 +308,30 @@ export const mockApi: AppApi = {
       settlementStatus.set(`${professorId}-${prefix}`, 'paid')
       return { id: ++nextId, professorId, periodYear: year, periodMonth: month, grossSalary: s.result.gross, barDiscount: s.result.barDiscount, expensesAssigned: 0, netAmount: s.result.net, status: 'paid', pdfPath: null, emailedAt: null }
     },
-    pdf: notAvailable
+    pdf: notAvailable,
+    listPayments: async (professorId, year, month) =>
+      settlementPayments.filter((p) => p.professorId === professorId && p.periodYear === year && p.periodMonth === month).map((p) => ({ ...p })),
+    addPayment: async (input) => {
+      const amount = Math.round(input.amount)
+      if (!(amount > 0)) throw new Error('El monto del abono debe ser mayor que cero.')
+      const prof = persons.find((p) => p.id === input.professorId)
+      // El abono también sale como gasto a nombre del profesor (paridad con la app real).
+      const glosa = `Abono liquidación ${input.month}/${input.year}` + (input.comment ? ` — ${input.comment}` : '')
+      const exp = { id: ++nextId, expenseDate: input.payDate, supplyName: 'Abono a profesor', count: 1, areaName: prof?.nickname ?? prof?.fullName ?? null, areaPersonId: input.professorId, supplierId: null, supplierRaw: null, amountOut: amount, comment: glosa, importBatchId: null }
+      expenses.push(exp)
+      const pay = { id: ++nextId, professorId: input.professorId, periodYear: input.year, periodMonth: input.month, payDate: input.payDate, amount, comment: input.comment ?? null, expenseId: exp.id }
+      settlementPayments.push(pay)
+      recomputeSettlementStatus(input.professorId, input.year, input.month)
+      return { ...pay }
+    },
+    removePayment: async (id) => {
+      const i = settlementPayments.findIndex((p) => p.id === id)
+      if (i < 0) return
+      const [pay] = settlementPayments.splice(i, 1)
+      const j = expenses.findIndex((e) => e.id === pay.expenseId)
+      if (j >= 0) expenses.splice(j, 1)
+      recomputeSettlementStatus(pay.professorId, pay.periodYear, pay.periodMonth)
+    }
   },
   finance: {
     dailyCashflow: async () => {
@@ -619,6 +643,16 @@ function buildBill(clientId: number, opts: any) {
   const cardTotal = opts.cardSurcharge ? roundCOP(netToPay * 1.05) : netToPay
   return { clientId, clientName: client.fullName, items, result: { sumServices, subtotal, lodging, barTotal, total, alreadyPaid, netToPay, cardTotal }, options: opts }
 }
+/** La liquidación queda PAGADA si los abonos cubren el neto; si no, 'issued'. */
+function recomputeSettlementStatus(professorId: number, year: number, month: number) {
+  const s = buildSettlement(professorId, year, month)
+  const total = settlementPayments
+    .filter((p) => p.professorId === professorId && p.periodYear === year && p.periodMonth === month)
+    .reduce((a, p) => a + p.amount, 0)
+  const prefix = `${year}-${String(month).padStart(2, '0')}`
+  settlementStatus.set(`${professorId}-${prefix}`, total >= s.result.net ? 'paid' : 'issued')
+}
+
 function buildSettlement(professorId: number, year: number, month: number) {
   const prefix = `${year}-${String(month).padStart(2, '0')}`
   const prof = persons.find((p) => p.id === professorId)!

@@ -70,7 +70,10 @@ const api: AppApi = {
     preview: (professorId, year, month) => call('settlements:preview', professorId, year, month),
     save: (professorId, year, month) => call('settlements:save', professorId, year, month),
     markPaid: (professorId, year, month) => call('settlements:markPaid', professorId, year, month),
-    pdf: (professorId, year, month) => call('settlements:pdf', professorId, year, month)
+    pdf: (professorId, year, month) => call('settlements:pdf', professorId, year, month),
+    listPayments: (professorId, year, month) => call('settlements:listPayments', professorId, year, month),
+    addPayment: (input) => call('settlements:addPayment', input),
+    removePayment: (id) => call('settlements:removePayment', id)
   },
   finance: {
     dailyCashflow: (from, to) => call('finance:dailyCashflow', from, to),

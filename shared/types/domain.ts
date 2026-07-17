@@ -223,6 +223,19 @@ export interface ProfessorSettlement {
   emailedAt: string | null
 }
 
+/** Abono (pago parcial) de la liquidación mensual de un profesor. */
+export interface SettlementPayment {
+  id: number
+  professorId: number
+  periodYear: number
+  periodMonth: number // 1..12
+  payDate: ISODate
+  amount: COP
+  comment: string | null
+  /** Gasto generado por el abono (dinero que sale de caja), para poder borrarlo junto. */
+  expenseId: number | null
+}
+
 // ---------------------------------------------------------------------------
 // Balance / Resumen / Estadísticas
 // ---------------------------------------------------------------------------

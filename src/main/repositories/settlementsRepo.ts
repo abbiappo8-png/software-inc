@@ -1,6 +1,6 @@
 /** Liquidación mensual de profesores (hoja Professor_Bill). */
 import { getDb } from '../db/connection'
-import type { ProfessorSettlement } from '@shared/types/domain'
+import type { ProfessorSettlement, SettlementPayment } from '@shared/types/domain'
 import { computeProfessorPayroll } from '@shared/services/payroll'
 import { get as getSetting } from './settingsRepo'
 // El tipo de la vista previa vive junto a la plantilla compartida del documento.
@@ -90,4 +90,90 @@ export function saveSettlement(professorId: number, year: number, month: number)
     grossSalary: row.gross_salary, barDiscount: row.bar_discount, expensesAssigned: row.expenses_assigned,
     netAmount: row.net_amount, status: row.status, pdfPath: row.pdf_path, emailedAt: row.emailed_at
   }
+}
+
+// ---------------------------------------------------------------------------
+// Abonos (pagos parciales) de la liquidación
+// ---------------------------------------------------------------------------
+
+function mapPayment(r: any): SettlementPayment {
+  return {
+    id: r.id, professorId: r.professor_id, periodYear: r.period_year, periodMonth: r.period_month,
+    payDate: r.pay_date, amount: r.amount, comment: r.comment, expenseId: r.expense_id ?? null
+  }
+}
+
+export function listPayments(professorId: number, year: number, month: number): SettlementPayment[] {
+  return getDb()
+    .prepare('SELECT * FROM settlement_payments WHERE professor_id=? AND period_year=? AND period_month=? ORDER BY pay_date, id')
+    .all(professorId, year, month)
+    .map(mapPayment)
+}
+
+export interface SettlementPaymentInput {
+  professorId: number
+  year: number
+  month: number
+  payDate: string
+  amount: number
+  comment?: string | null
+}
+
+/** Guarda la liquidación con montos frescos y la marca PAGADA si los abonos cubren el neto. */
+function recomputeStatus(professorId: number, year: number, month: number): void {
+  const s = saveSettlement(professorId, year, month) // upsert como 'issued'
+  const total = (
+    getDb()
+      .prepare('SELECT IFNULL(SUM(amount),0) v FROM settlement_payments WHERE professor_id=? AND period_year=? AND period_month=?')
+      .get(professorId, year, month) as { v: number }
+  ).v
+  if (s.netAmount != null && total >= s.netAmount) {
+    getDb()
+      .prepare("UPDATE professor_settlements SET status='paid' WHERE professor_id=? AND period_year=? AND period_month=?")
+      .run(professorId, year, month)
+  }
+}
+
+export function addPayment(input: SettlementPaymentInput): SettlementPayment {
+  const amount = Math.round(input.amount)
+  if (!(amount > 0)) throw new Error('El monto del abono debe ser mayor que cero.')
+  const db = getDb()
+  const prof = db.prepare('SELECT full_name, nickname FROM persons WHERE id=?').get(input.professorId) as
+    | { full_name: string; nickname: string | null }
+    | undefined
+  if (!prof) throw new Error('Profesor no encontrado')
+
+  // El abono es dinero que sale de caja: se registra también como gasto a nombre del
+  // profesor (como en el Excel, donde el pago iba en Outcome). monthSummary lo excluye
+  // de los costos (área = profesor), así que no se cuenta doble con los salarios.
+  const glosa = `Abono liquidación ${input.month}/${input.year}` + (input.comment ? ` — ${input.comment}` : '')
+  const expenseId = db
+    .prepare(
+      `INSERT INTO expenses(expense_date,supply_name,count,area_name,area_person_id,amount_out,comment)
+       VALUES(@date,'Abono a profesor',1,@area,@prof,@amount,@comment)`
+    )
+    .run({ date: input.payDate, area: prof.nickname ?? prof.full_name, prof: input.professorId, amount, comment: glosa })
+    .lastInsertRowid as number
+
+  const payId = db
+    .prepare(
+      `INSERT INTO settlement_payments(professor_id,period_year,period_month,pay_date,amount,comment,expense_id)
+       VALUES(@prof,@year,@month,@date,@amount,@comment,@expense)`
+    )
+    .run({
+      prof: input.professorId, year: input.year, month: input.month,
+      date: input.payDate, amount, comment: input.comment ?? null, expense: expenseId
+    }).lastInsertRowid as number
+
+  recomputeStatus(input.professorId, input.year, input.month)
+  return mapPayment(db.prepare('SELECT * FROM settlement_payments WHERE id=?').get(payId))
+}
+
+export function removePayment(id: number): void {
+  const db = getDb()
+  const row = db.prepare('SELECT * FROM settlement_payments WHERE id=?').get(id) as any
+  if (!row) return
+  db.prepare('DELETE FROM settlement_payments WHERE id=?').run(id) // primero: referencia al gasto
+  if (row.expense_id != null) db.prepare('DELETE FROM expenses WHERE id=?').run(row.expense_id)
+  recomputeStatus(row.professor_id, row.period_year, row.period_month)
 }

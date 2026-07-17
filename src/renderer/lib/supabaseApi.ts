@@ -22,6 +22,7 @@ import type {
   ClientBill,
   ClientBillItem,
   ProfessorSettlement,
+  SettlementPayment,
   PaymentPlan,
   MonthSummary,
   CompanyConfig,
@@ -736,6 +737,99 @@ async function saveSettlement(professorId: number, year: number, month: number):
   return mapSettlement(row)
 }
 
+// ----- Abonos (pagos parciales) de la liquidación -----
+
+function mapSettlementPayment(r: any): SettlementPayment {
+  return {
+    id: r.id,
+    professorId: r.professor_id,
+    periodYear: r.period_year,
+    periodMonth: r.period_month,
+    payDate: r.pay_date,
+    amount: r.amount,
+    comment: r.comment,
+    expenseId: r.expense_id ?? null
+  }
+}
+
+function paymentPeriodFilters(professorId: number, year: number, month: number): string[] {
+  return [sb.eq('professor_id', professorId), sb.eq('period_year', year), sb.eq('period_month', month)]
+}
+
+async function listSettlementPayments(professorId: number, year: number, month: number): Promise<SettlementPayment[]> {
+  const rows = await sb.selectAll<any>('settlement_payments', {
+    filters: paymentPeriodFilters(professorId, year, month),
+    order: 'pay_date.asc,id.asc'
+  })
+  return rows.map(mapSettlementPayment)
+}
+
+/** Guarda la liquidación con montos frescos y la marca PAGADA si los abonos cubren el neto. */
+async function recomputeSettlementStatus(professorId: number, year: number, month: number): Promise<void> {
+  const s = await saveSettlement(professorId, year, month) // upsert como 'issued'
+  const pays = await sb.selectAll<any>('settlement_payments', {
+    select: 'amount',
+    filters: paymentPeriodFilters(professorId, year, month)
+  })
+  const total = pays.reduce((a: number, p: any) => a + (p.amount ?? 0), 0)
+  if (s.netAmount != null && total >= s.netAmount) {
+    await sb.update('professor_settlements', { status: 'paid' }, paymentPeriodFilters(professorId, year, month))
+  }
+}
+
+async function addSettlementPayment(input: {
+  professorId: number
+  year: number
+  month: number
+  payDate: string
+  amount: number
+  comment?: string | null
+}): Promise<SettlementPayment> {
+  const amount = Math.round(input.amount)
+  if (!(amount > 0)) throw new Error('El monto del abono debe ser mayor que cero.')
+  const prof = await sb.selectOne<any>('persons', {
+    select: 'full_name,nickname',
+    filters: [sb.eq('id', input.professorId)]
+  })
+  if (!prof) throw new Error('Profesor no encontrado')
+
+  // El abono es dinero que sale de caja: se registra también como gasto a nombre del
+  // profesor (paridad con el escritorio; monthSummary lo excluye de los costos).
+  const glosa = `Abono liquidación ${input.month}/${input.year}` + (input.comment ? ` — ${input.comment}` : '')
+  const [exp] = await sb.insert<any>('expenses', [
+    {
+      expense_date: input.payDate,
+      supply_name: 'Abono a profesor',
+      count: 1,
+      area_name: prof.nickname ?? prof.full_name,
+      area_person_id: input.professorId,
+      amount_out: amount,
+      comment: glosa
+    }
+  ])
+  const [row] = await sb.insert<any>('settlement_payments', [
+    {
+      professor_id: input.professorId,
+      period_year: input.year,
+      period_month: input.month,
+      pay_date: input.payDate,
+      amount,
+      comment: input.comment ?? null,
+      expense_id: exp.id
+    }
+  ])
+  await recomputeSettlementStatus(input.professorId, input.year, input.month)
+  return mapSettlementPayment(row)
+}
+
+async function removeSettlementPayment(id: number): Promise<void> {
+  const row = await sb.selectOne<any>('settlement_payments', { filters: [sb.eq('id', id)] })
+  if (!row) return
+  await sb.remove('settlement_payments', [sb.eq('id', id)]) // primero: referencia al gasto
+  if (row.expense_id != null) await sb.remove('expenses', [sb.eq('id', row.expense_id)])
+  await recomputeSettlementStatus(row.professor_id, row.period_year, row.period_month)
+}
+
 // ---------------------------------------------------------------------------
 // finance (agregación en cliente, réplica de financeRepo)
 // ---------------------------------------------------------------------------
@@ -1339,7 +1433,10 @@ export const supabaseApi: AppApi = {
     pdf: async (professorId, year, month) => {
       const preview = await previewSettlement(professorId, year, month)
       return openPrintWindow(settlementHtml(preview, await getCompanyConfig()))
-    }
+    },
+    listPayments: async (professorId, year, month) => listSettlementPayments(professorId, year, month),
+    addPayment: async (input) => addSettlementPayment(input),
+    removePayment: async (id) => removeSettlementPayment(id)
   },
 
   finance: {

@@ -10,6 +10,7 @@ import type {
   Expense,
   ClientBill,
   ProfessorSettlement,
+  SettlementPayment,
   DailyCashflowRow,
   MonthSummary,
   AgeBucket,
@@ -112,6 +113,22 @@ export interface AppApi {
     /** Marca la liquidación del periodo como pagada (el saldo del profesor queda saldado). */
     markPaid(professorId: number, year: number, month: number): Promise<ProfessorSettlement>
     pdf(professorId: number, year: number, month: number): Promise<string>
+    /** Abonos (pagos parciales) del periodo, ordenados por fecha. */
+    listPayments(professorId: number, year: number, month: number): Promise<SettlementPayment[]>
+    /**
+     * Registra un abono: crea también el gasto correspondiente (dinero que sale de caja)
+     * y, si los abonos completan el neto, la liquidación queda PAGADA automáticamente.
+     */
+    addPayment(input: {
+      professorId: number
+      year: number
+      month: number
+      payDate: string
+      amount: number
+      comment?: string | null
+    }): Promise<SettlementPayment>
+    /** Elimina un abono y su gasto enlazado, recalculando el estado de la liquidación. */
+    removePayment(id: number): Promise<void>
   }
   finance: {
     dailyCashflow(from?: string, to?: string): Promise<{ rows: DailyCashflowRow[]; totals: { in: number; out: number; net: number } }>
